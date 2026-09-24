@@ -67,6 +67,7 @@ jobs:
             -addext 'keyUsage=critical,digitalSignature' \
             -addext 'extendedKeyUsage=codeSigning'
           openssl pkcs12 -export \
+            -legacy \
             -inkey "$CI_CERTS/private-key.pem" \
             -in "$CI_CERTS/certificate.pem" \
             -out "$CI_CERTS/SelfSigned.p12" \
