@@ -41,6 +41,14 @@ jobs:
           xcodebuild -version
           xcodebuild -downloadComponent MetalToolchain
 
+      - name: Restore Bazel cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bazel
+          key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-x86_64-
+
       - name: Build unsigned arm64 IPA
         shell: bash
         run: |

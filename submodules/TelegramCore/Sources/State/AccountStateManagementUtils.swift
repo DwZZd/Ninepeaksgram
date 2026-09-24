@@ -4654,14 +4654,10 @@ func replayFinalState(
                     updateMessageMedia(transaction: transaction, id: pollId, media: updatedPoll)
                 }
             case let .UpdateMedia(id, media):
-                // A read-content update from another session may carry an
-                // expired placeholder. Keep the locally cached one-time media.
-                if transaction.getMessage(id)?.shouldPersistViewOnceMedia != true {
-                    if let media = media as? TelegramMediaWebpage {
-                        updatedWebpages[id] = media
-                    }
-                    updateMessageMedia(transaction: transaction, id: id, media: media)
+                if let media = media as? TelegramMediaWebpage {
+                    updatedWebpages[id] = media
                 }
+                updateMessageMedia(transaction: transaction, id: id, media: media)
             case let .ReadInbox(messageId):
                 transaction.applyIncomingReadMaxId(messageId)
             case let .ReadOutbox(messageId, timestamp):
