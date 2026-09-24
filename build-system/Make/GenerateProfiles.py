@@ -7,6 +7,7 @@ import plistlib
 import argparse
 import subprocess
 import base64
+from datetime import datetime, timedelta, timezone
 
 from BuildEnvironment import run_executable_with_output, check_run_system
 
@@ -117,6 +118,18 @@ def process_provisioning_profile(source, destination, certificate_data, signing_
 
     # Remove the DER-Encoded-Profile (signature)
     run_executable_with_output('plutil', arguments=['-remove', 'DER-Encoded-Profile', parsed_plist_file])
+
+    # Verification profiles are repository fixtures and may be expired by the
+    # time a reproducible CI build runs. Refresh their validity before signing
+    # them with the bundled self-signed certificate.
+    now = datetime.now(timezone.utc)
+    with open(parsed_plist_file, 'rb') as file:
+        profile = plistlib.load(file)
+    profile['CreationDate'] = now
+    profile['ExpirationDate'] = now + timedelta(days=3650)
+    profile['TimeToLive'] = 3650
+    with open(parsed_plist_file, 'wb') as file:
+        plistlib.dump(profile, file)
 
     # Sign with the certificate from the temporary keychain
     run_executable_with_output('security', arguments=[

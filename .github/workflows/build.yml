@@ -48,13 +48,23 @@ jobs:
           COMMIT_COUNT="$(git rev-list --count HEAD)"
           BUILD_NUMBER="$((COMMIT_COUNT + BUILD_NUMBER_OFFSET))"
 
+          CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
+          python3 -u build-system/Make/Make.py \
+            generate-verification-profiles \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --destination="$CI_CODESIGNING/profiles" \
+            --certsPath=build-system/fake-codesigning/certs
+          mkdir -p "$CI_CODESIGNING/certs"
+          cp build-system/fake-codesigning/certs/* "$CI_CODESIGNING/certs/"
+
           python3 build-system/Make/ImportCertificates.py \
-            --path build-system/fake-codesigning/certs
+            --path "$CI_CODESIGNING/certs"
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel" \
             build \
             --configurationPath=build-system/appstore-configuration.json \
-            --codesigningInformationPath=build-system/fake-codesigning \
+            --codesigningInformationPath="$CI_CODESIGNING" \
             --configuration=release_arm64 \
             --buildNumber="$BUILD_NUMBER"
 
