@@ -39,6 +39,7 @@ jobs:
           fi
           sudo xcode-select --switch "$XCODE_PATH"
           xcodebuild -version
+          xcodebuild -downloadComponent MetalToolchain
 
       - name: Build unsigned arm64 IPA
         shell: bash
