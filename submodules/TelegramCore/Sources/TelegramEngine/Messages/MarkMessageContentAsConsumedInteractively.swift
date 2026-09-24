@@ -6,6 +6,8 @@ import SwiftSignalKit
 func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messageId: MessageId) -> Signal<Void, NoError> {
     return postbox.transaction { transaction -> Void in
         if let message = transaction.getMessage(messageId), message.flags.contains(.Incoming) {
+            let persistViewOnceMedia = message.shouldPersistViewOnceMedia
+
             var updateMessage = false
             var updatedAttributes = message.attributes
             
@@ -15,30 +17,35 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
                         updatedAttributes[i] = ConsumableContentMessageAttribute(consumed: true)
                         updateMessage = true
                         
-                        if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
-                            if let state = transaction.getPeerChatState(message.id.peerId) as? SecretChatState {
-                                var layer: SecretChatLayer?
-                                switch state.embeddedState {
-                                    case .terminated, .handshake:
-                                        break
-                                    case .basicLayer:
-                                        layer = .layer8
-                                    case let .sequenceBasedLayer(sequenceState):
-                                        layer = sequenceState.layerNegotiationState.activeLayer.secretChatLayer
-                                }
-                                if let layer = layer {
-                                    var globallyUniqueIds: [Int64] = []
-                                    if let globallyUniqueId = message.globallyUniqueId {
-                                        globallyUniqueIds.append(globallyUniqueId)
-                                        let updatedState = addSecretChatOutgoingOperation(transaction: transaction, peerId: message.id.peerId, operation: SecretChatOutgoingOperationContents.readMessagesContent(layer: layer, actionGloballyUniqueId: Int64.random(in: Int64.min ... Int64.max), globallyUniqueIds: globallyUniqueIds), state: state)
-                                        if updatedState != state {
-                                            transaction.setPeerChatState(message.id.peerId, state: updatedState)
+                        // Keep the local consumed state so the chat reveals the
+                        // media, but do not acknowledge a persistent view-once
+                        // item to Telegram: that acknowledgement expires it.
+                        if !persistViewOnceMedia {
+                            if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
+                                if let state = transaction.getPeerChatState(message.id.peerId) as? SecretChatState {
+                                    var layer: SecretChatLayer?
+                                    switch state.embeddedState {
+                                        case .terminated, .handshake:
+                                            break
+                                        case .basicLayer:
+                                            layer = .layer8
+                                        case let .sequenceBasedLayer(sequenceState):
+                                            layer = sequenceState.layerNegotiationState.activeLayer.secretChatLayer
+                                    }
+                                    if let layer = layer {
+                                        var globallyUniqueIds: [Int64] = []
+                                        if let globallyUniqueId = message.globallyUniqueId {
+                                            globallyUniqueIds.append(globallyUniqueId)
+                                            let updatedState = addSecretChatOutgoingOperation(transaction: transaction, peerId: message.id.peerId, operation: SecretChatOutgoingOperationContents.readMessagesContent(layer: layer, actionGloballyUniqueId: Int64.random(in: Int64.min ... Int64.max), globallyUniqueIds: globallyUniqueIds), state: state)
+                                            if updatedState != state {
+                                                transaction.setPeerChatState(message.id.peerId, state: updatedState)
+                                            }
                                         }
                                     }
                                 }
+                            } else {
+                                addSynchronizeConsumeMessageContentsOperation(transaction: transaction, messageIds: [message.id])
                             }
-                        } else {
-                            addSynchronizeConsumeMessageContentsOperation(transaction: transaction, messageIds: [message.id])
                         }
                     }
                 } else if let attribute = updatedAttributes[i] as? ConsumablePersonalMentionMessageAttribute, !attribute.consumed {
@@ -50,12 +57,10 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
             let timestamp = Int32(CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970)
             for i in 0 ..< updatedAttributes.count {
                 if let attribute = updatedAttributes[i] as? AutoremoveTimeoutMessageAttribute {
+                    if persistViewOnceMedia {
+                        continue
+                    }
                     if attribute.countdownBeginTime == nil || attribute.countdownBeginTime == 0 {
-                        // MISC: Don't start countdown for view-once if bypass enabled
-                        if attribute.timeout == viewOnceTimeout && MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete {
-                            continue
-                        }
-                        
                         var timeout = attribute.timeout
                         if let duration = message.secretMediaDuration {
                             timeout = max(timeout, Int32(duration))
@@ -86,6 +91,9 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
                         }
                     }
                 } else if let attribute = updatedAttributes[i] as? AutoclearTimeoutMessageAttribute {
+                    if persistViewOnceMedia {
+                        continue
+                    }
                     if attribute.countdownBeginTime == nil || attribute.countdownBeginTime == 0 {
                         var timeout = attribute.timeout
                         if let duration = message.secretMediaDuration, timeout != viewOnceTimeout {
@@ -167,6 +175,13 @@ func _internal_markReactionsAsSeenInteractively(postbox: Postbox, messageId: Mes
 
 func markMessageContentAsConsumedRemotely(transaction: Transaction, messageId: MessageId, consumeDate: Int32?) {
     if let message = transaction.getMessage(messageId) {
+        // Another local session may report the content as consumed. Preserve our
+        // Postbox record and cached media instead of replacing it with expired
+        // content while the view-once persistence setting is active.
+        if message.shouldPersistViewOnceMedia {
+            return
+        }
+
         var updateMessage = false
         var updatedAttributes = message.attributes
         var updatedMedia = message.media
@@ -199,9 +214,7 @@ func markMessageContentAsConsumedRemotely(transaction: Transaction, messageId: M
                                  
                     if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
                     } else {
-                        // MISC: Don't expire view-once media if bypass enabled
-                        let shouldExpire = !(attribute.timeout == viewOnceTimeout && MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete)
-                        if shouldExpire && (attribute.timeout == viewOnceTimeout || timestamp >= countdownBeginTime + attribute.timeout) {
+                        if attribute.timeout == viewOnceTimeout || timestamp >= countdownBeginTime + attribute.timeout {
                             for i in 0 ..< updatedMedia.count {
                                 if let _ = updatedMedia[i] as? TelegramMediaImage {
                                     updatedMedia[i] = TelegramMediaExpiredContent(data: .image)

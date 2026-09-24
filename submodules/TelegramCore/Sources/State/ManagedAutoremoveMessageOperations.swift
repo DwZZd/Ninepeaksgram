@@ -82,6 +82,15 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
                     Logger.shared.log("Autoremove", "Performing autoremove for \(entry.messageId), isRemove: \(isRemove)")
 
                     if let message = transaction.getMessage(entry.messageId) {
+                        if message.shouldPersistViewOnceMedia {
+                            // A stale countdown may already exist from before the
+                            // setting was enabled. Remove its scheduling index but
+                            // keep the message and media intact.
+                            transaction.clearTimestampBasedAttribute(id: entry.messageId, tag: tag)
+                            Logger.shared.log("Autoremove", "Preserving view-once media \(entry.messageId)")
+                            return
+                        }
+
                         if message.id.peerId.namespace == Namespaces.Peer.SecretChat || isRemove {
                             _internal_deleteMessages(transaction: transaction, mediaBox: postbox.mediaBox, ids: [entry.messageId])
                         } else {
