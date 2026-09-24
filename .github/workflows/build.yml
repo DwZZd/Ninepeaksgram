@@ -42,7 +42,7 @@ jobs:
           xcodebuild -downloadComponent MetalToolchain
 
       - name: Restore Bazel cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/bazel
           key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}
@@ -58,14 +58,33 @@ jobs:
           BUILD_NUMBER="$((COMMIT_COUNT + BUILD_NUMBER_OFFSET))"
 
           CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
+          CI_CERTS="$RUNNER_TEMP/fake-certs"
+          mkdir -p "$CI_CERTS"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+            -keyout "$CI_CERTS/private-key.pem" \
+            -out "$CI_CERTS/certificate.pem" \
+            -subj '/C=US/O=Telegram FZ-LLC/OU=C67CF9S4VU/CN=Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)' \
+            -addext 'keyUsage=critical,digitalSignature' \
+            -addext 'extendedKeyUsage=codeSigning'
+          openssl pkcs12 -export \
+            -inkey "$CI_CERTS/private-key.pem" \
+            -in "$CI_CERTS/certificate.pem" \
+            -out "$CI_CERTS/SelfSigned.p12" \
+            -passout pass:
+          openssl x509 \
+            -in "$CI_CERTS/certificate.pem" \
+            -outform DER \
+            -out "$CI_CERTS/Public.cer"
+
           python3 -u build-system/Make/Make.py \
             generate-verification-profiles \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
             --destination="$CI_CODESIGNING/profiles" \
-            --certsPath=build-system/fake-codesigning/certs
+            --certsPath="$CI_CERTS"
           mkdir -p "$CI_CODESIGNING/certs"
-          cp build-system/fake-codesigning/certs/* "$CI_CODESIGNING/certs/"
+          cp "$CI_CERTS/SelfSigned.p12" "$CI_CERTS/Public.cer" \
+            "$CI_CODESIGNING/certs/"
 
           python3 build-system/Make/ImportCertificates.py \
             --path "$CI_CODESIGNING/certs"
@@ -102,6 +121,13 @@ jobs:
             ditto -c -k --sequesterRsrc --keepParent \
               Payload ../artifacts/Ninepeaksgram.ipa
           )
+
+      - name: Save Bazel cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/bazel
+          key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
