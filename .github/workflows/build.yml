@@ -57,45 +57,17 @@ jobs:
           COMMIT_COUNT="$(git rev-list --count HEAD)"
           BUILD_NUMBER="$((COMMIT_COUNT + BUILD_NUMBER_OFFSET))"
 
-          CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
-          CI_CERTS="$RUNNER_TEMP/fake-certs"
-          mkdir -p "$CI_CERTS"
-          openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
-            -keyout "$CI_CERTS/private-key.pem" \
-            -out "$CI_CERTS/certificate.pem" \
-            -subj '/C=US/O=Telegram FZ-LLC/OU=C67CF9S4VU/CN=Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)' \
-            -addext 'keyUsage=critical,digitalSignature' \
-            -addext 'extendedKeyUsage=codeSigning'
-          openssl pkcs12 -export \
-            -legacy \
-            -inkey "$CI_CERTS/private-key.pem" \
-            -in "$CI_CERTS/certificate.pem" \
-            -out "$CI_CERTS/SelfSigned.p12" \
-            -passout pass:
-          openssl x509 \
-            -in "$CI_CERTS/certificate.pem" \
-            -outform DER \
-            -out "$CI_CERTS/Public.cer"
-
-          python3 -u build-system/Make/Make.py \
-            generate-verification-profiles \
-            --configurationPath=build-system/appstore-configuration.json \
-            --codesigningInformationPath=build-system/fake-codesigning \
-            --destination="$CI_CODESIGNING/profiles" \
-            --certsPath="$CI_CERTS"
-          mkdir -p "$CI_CODESIGNING/certs"
-          cp "$CI_CERTS/SelfSigned.p12" "$CI_CERTS/Public.cer" \
-            "$CI_CODESIGNING/certs/"
-
           python3 build-system/Make/ImportCertificates.py \
-            --path "$CI_CODESIGNING/certs"
+            --path build-system/fake-codesigning/certs || true
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel" \
             build \
             --configurationPath=build-system/appstore-configuration.json \
-            --codesigningInformationPath="$CI_CODESIGNING" \
+            --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber="$BUILD_NUMBER"
+            --buildNumber="$BUILD_NUMBER" \
+            --disableProvisioningProfiles \
+            --disableExtensions
 
           mkdir -p build/artifacts
           IPA_PATH="$(find bazel-out -path '*/bin/Telegram/Telegram.ipa' -type f -print -quit)"
