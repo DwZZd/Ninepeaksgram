@@ -38,6 +38,7 @@ def import_certificates(certificatesPath):
     run_executable_with_output('security', arguments=['set-keychain-settings', keychain_name])
     run_executable_with_output('security', arguments=['unlock-keychain', '-p', keychain_password, keychain_name])
 
+    p12_password = os.environ.get('TELEGRAM_FAKE_P12_PASSWORD', '')
     for file_name in os.listdir(certificatesPath):
         file_path = certificatesPath + '/' + file_name
         if file_path.endswith('.p12') or file_path.endswith('.cer'):
@@ -47,12 +48,12 @@ def import_certificates(certificatesPath):
                 '-k',
                 keychain_name,
                 '-P',
-                '',
+                p12_password,
                 '-T',
                 '/usr/bin/codesign',
                 '-T',
                 '/usr/bin/security'
-            ], check_result=False)
+            ], check_result=file_path.endswith('.p12'))
 
     run_executable_with_output('security', arguments=[
         'import',

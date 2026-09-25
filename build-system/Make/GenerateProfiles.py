@@ -56,13 +56,22 @@ def cleanup_temp_keychain(keychain_name):
     run_executable_with_output('security', arguments=['delete-keychain', keychain_name], check_result=False)
 
 
+def _export_certificate_pem_from_p12(p12_path, p12_password=''):
+    """Extract certificate PEM from a PKCS#12 file."""
+    for extra_args in (['-legacy'], []):
+        proc = subprocess.Popen(
+            ['openssl', 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys'] + extra_args,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        cert_pem, _ = proc.communicate()
+        if proc.returncode == 0 and cert_pem:
+            return cert_pem
+    return b''
+
+
 def get_signing_identity_from_p12(p12_path, p12_password=''):
     """Extract the common name (signing identity) from the p12 certificate."""
-    proc = subprocess.Popen(
-        ['openssl', 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys', '-legacy'],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    cert_pem, _ = proc.communicate()
+    cert_pem = _export_certificate_pem_from_p12(p12_path, p12_password)
 
     proc2 = subprocess.Popen(
         ['openssl', 'x509', '-noout', '-subject', '-nameopt', 'oneline,-esc_msb'],
@@ -81,12 +90,7 @@ def get_signing_identity_from_p12(p12_path, p12_password=''):
 
 def get_certificate_base64_from_p12(p12_path, p12_password=''):
     """Extract the certificate as base64 from p12 file."""
-    # Extract certificate in PEM format
-    proc = subprocess.Popen(
-        ['openssl', 'pkcs12', '-in', p12_path, '-passin', 'pass:' + p12_password, '-nokeys', '-legacy'],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    cert_pem, _ = proc.communicate()
+    cert_pem = _export_certificate_pem_from_p12(p12_path, p12_password)
 
     # Convert to DER format
     proc2 = subprocess.Popen(
@@ -151,7 +155,7 @@ def generate_provisioning_profiles(source_path, destination_path, certs_path):
         sys.exit(1)
 
     # Extract certificate info from p12
-    p12_password = ''  # fake-codesigning uses empty password
+    p12_password = os.environ.get('TELEGRAM_FAKE_P12_PASSWORD', '')
     certificate_data = get_certificate_base64_from_p12(p12_path, p12_password)
     signing_identity = get_signing_identity_from_p12(p12_path, p12_password)
 
