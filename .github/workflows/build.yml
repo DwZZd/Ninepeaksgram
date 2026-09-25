@@ -45,8 +45,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/bazel
-          key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}
+          key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}-${{ github.run_id }}
           restore-keys: |
+            bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}-
             bazel-${{ runner.os }}-x86_64-
 
       - name: Build unsigned arm64 IPA
@@ -92,6 +93,7 @@ jobs:
 
           python3 build-system/Make/ImportCertificates.py \
             --path "$CI_CODESIGNING/certs"
+          security find-identity -v -p codesigning
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel" \
             build \
@@ -132,7 +134,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ runner.temp }}/bazel
-          key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}
+          key: bazel-${{ runner.os }}-x86_64-${{ hashFiles('MODULE.bazel.lock', 'WORKSPACE', 'versions.json') }}-${{ github.run_id }}
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
