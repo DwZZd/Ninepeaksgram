@@ -62,29 +62,10 @@ jobs:
           CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
           CI_CERTS="$RUNNER_TEMP/fake-certs"
           mkdir -p "$CI_CERTS"
-          cat > "$CI_CERTS/codesign.cnf" <<'EOF'
-[req]
-distinguished_name = req_distinguished_name
-prompt = no
-x509_extensions = codesign_ext
-
-[req_distinguished_name]
-C = US
-O = Telegram FZ-LLC
-OU = C67CF9S4VU
-CN = Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)
-
-[codesign_ext]
-basicConstraints = critical,CA:TRUE
-keyUsage = critical,digitalSignature,keyCertSign
-extendedKeyUsage = critical,codeSigning
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
-EOF
           openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
             -keyout "$CI_CERTS/private-key.pem" \
             -out "$CI_CERTS/certificate.pem" \
-            -config "$CI_CERTS/codesign.cnf"
+            -config build-system/ci-codesign.cnf
           PKCS12_ARGS=(
             -export
             -inkey "$CI_CERTS/private-key.pem"
