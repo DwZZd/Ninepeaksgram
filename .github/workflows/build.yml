@@ -62,12 +62,29 @@ jobs:
           CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
           CI_CERTS="$RUNNER_TEMP/fake-certs"
           mkdir -p "$CI_CERTS"
+          cat > "$CI_CERTS/codesign.cnf" <<'EOF'
+[req]
+distinguished_name = req_distinguished_name
+prompt = no
+x509_extensions = codesign_ext
+
+[req_distinguished_name]
+C = US
+O = Telegram FZ-LLC
+OU = C67CF9S4VU
+CN = Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)
+
+[codesign_ext]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical,digitalSignature,keyCertSign
+extendedKeyUsage = critical,codeSigning
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+EOF
           openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
             -keyout "$CI_CERTS/private-key.pem" \
             -out "$CI_CERTS/certificate.pem" \
-            -subj '/C=US/O=Telegram FZ-LLC/OU=C67CF9S4VU/CN=Apple Distribution: Telegram FZ-LLC (C67CF9S4VU)' \
-            -addext 'keyUsage=critical,digitalSignature' \
-            -addext 'extendedKeyUsage=codeSigning'
+            -config "$CI_CERTS/codesign.cnf"
           PKCS12_ARGS=(
             -export
             -inkey "$CI_CERTS/private-key.pem"
@@ -80,6 +97,7 @@ jobs:
             -in "$CI_CERTS/certificate.pem" \
             -outform DER \
             -out "$CI_CERTS/Public.cer"
+          openssl x509 -in "$CI_CERTS/certificate.pem" -noout -text | tail -n 40
 
           python3 -u build-system/Make/Make.py \
             generate-verification-profiles \
@@ -93,7 +111,20 @@ jobs:
 
           python3 build-system/Make/ImportCertificates.py \
             --path "$CI_CODESIGNING/certs"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign \
+            -k /Library/Keychains/System.keychain "$CI_CERTS/Public.cer" || true
+          security import "$CI_CERTS/SelfSigned.p12" \
+            -k ~/Library/Keychains/login.keychain-db \
+            -P "$TELEGRAM_FAKE_P12_PASSWORD" \
+            -A -T /usr/bin/codesign -T /usr/bin/security || true
+          echo "All identities:"
+          security find-identity -v
+          echo "Codesigning identities:"
           security find-identity -v -p codesigning
+          if ! security find-identity -v -p codesigning | grep -q 'Apple Distribution: Telegram FZ-LLC'; then
+            echo "::error::Fake codesigning identity is not visible to codesign"
+            exit 1
+          fi
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel" \
             build \
