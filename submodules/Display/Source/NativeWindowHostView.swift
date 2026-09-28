@@ -310,6 +310,17 @@ private final class NativeWindow: UIWindow, WindowHost {
             }
         }
     }
+
+    @available(iOS 13.0, *)
+    override init(windowScene: UIWindowScene) {
+        super.init(windowScene: windowScene)
+        
+        if let gestureRecognizers = self.gestureRecognizers {
+            for recognizer in gestureRecognizers {
+                recognizer.delaysTouchesBegan = false
+            }
+        }
+    }
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -372,7 +383,13 @@ private final class NativeWindow: UIWindow, WindowHost {
 }
 
 public func nativeWindowHostView() -> (UIWindow & WindowHost, WindowHostView) {
-    let window = NativeWindow(frame: UIScreen.main.bounds)
+    let window: NativeWindow
+    if #available(iOS 13.0, *), let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+        window = NativeWindow(windowScene: scene)
+        window.frame = scene.coordinateSpace.bounds
+    } else {
+        window = NativeWindow(frame: UIScreen.main.bounds)
+    }
     
     let rootViewController = WindowRootViewController()
     window.rootViewController = rootViewController

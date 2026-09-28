@@ -1090,22 +1090,37 @@ public final class MetalEngine {
     
     public static let shared = MetalEngine()
     
-    fileprivate let impl: Impl
+    fileprivate let impl: Impl?
+    private let fallbackRootLayer = CALayer()
+    
+    public var isReady: Bool {
+        return self.impl != nil
+    }
     
     public var rootLayer: CALayer {
+        guard let impl = self.impl else {
+            return self.fallbackRootLayer
+        }
         #if targetEnvironment(simulator)
-        return self.impl._layer
+        return impl._layer
         #else
-        return self.impl.layer
+        return impl.layer
         #endif
     }
     
     public var device: MTLDevice {
-        return self.impl.device
+        if let impl = self.impl {
+            return impl.device
+        }
+        return MTLCreateSystemDefaultDevice()!
     }
     
     private init() {
-        self.impl = Impl(device: MTLCreateSystemDefaultDevice()!)!
+        if let device = MTLCreateSystemDefaultDevice(), let impl = Impl(device: device) {
+            self.impl = impl
+        } else {
+            self.impl = nil
+        }
     }
     
     public func pooledTexture(spec: TextureSpec) -> PooledTexture {

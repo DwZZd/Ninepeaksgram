@@ -404,7 +404,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         self.nativeWindow = window
         self.window?.makeKeyAndVisible()
         
-        hostView.containerView.layer.addSublayer(MetalEngine.shared.rootLayer)
+        if MetalEngine.shared.isReady {
+            hostView.containerView.layer.addSublayer(MetalEngine.shared.rootLayer)
+        }
         
         if !UIDevice.current.isBatteryMonitoringEnabled {
             UIDevice.current.isBatteryMonitoringEnabled = true
@@ -1588,37 +1590,41 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         
         if #available(iOS 13.0, *) {
             let taskId = "\(baseAppBundleId).cleanup"
-            
-            BGTaskScheduler.shared.register(forTaskWithIdentifier: taskId, using: DispatchQueue.main) { task in
-                Logger.shared.log("App \(self.episodeId)", "Executing cleanup task")
-                
-                let disposable = self.runCacheReindexTasks(lowImpact: true, completion: {
-                    Logger.shared.log("App \(self.episodeId)", "Completed cleanup task")
+            let permittedTaskIds = (Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String]) ?? []
+            if permittedTaskIds.contains(taskId) {
+                BGTaskScheduler.shared.register(forTaskWithIdentifier: taskId, using: DispatchQueue.main) { task in
+                    Logger.shared.log("App \(self.episodeId)", "Executing cleanup task")
                     
-                    task.setTaskCompleted(success: true)
+                    let disposable = self.runCacheReindexTasks(lowImpact: true, completion: {
+                        Logger.shared.log("App \(self.episodeId)", "Completed cleanup task")
+                        
+                        task.setTaskCompleted(success: true)
+                    })
+                    
+                    task.expirationHandler = {
+                        disposable.dispose()
+                        task.setTaskCompleted(success: false)
+                    }
+                }
+                
+                BGTaskScheduler.shared.getPendingTaskRequests(completionHandler: { tasks in
+                    if tasks.contains(where: { $0.identifier == taskId }) {
+                        Logger.shared.log("App \(self.episodeId)", "Already have a cleanup task pending")
+                        return
+                    }
+                    let request = BGProcessingTaskRequest(identifier: taskId)
+                    request.requiresExternalPower = true
+                    request.requiresNetworkConnectivity = false
+                    
+                    do {
+                        try BGTaskScheduler.shared.submit(request)
+                    } catch let e {
+                        Logger.shared.log("App \(self.episodeId)", "Error submitting background task request: \(e)")
+                    }
                 })
-                
-                task.expirationHandler = {
-                    disposable.dispose()
-                    task.setTaskCompleted(success: false)
-                }
+            } else {
+                Logger.shared.log("App \(self.episodeId)", "Skipping BGTask \(taskId); not listed in Info.plist")
             }
-            
-            BGTaskScheduler.shared.getPendingTaskRequests(completionHandler: { tasks in
-                if tasks.contains(where: { $0.identifier == taskId }) {
-                    Logger.shared.log("App \(self.episodeId)", "Already have a cleanup task pending")
-                    return
-                }
-                let request = BGProcessingTaskRequest(identifier: taskId)
-                request.requiresExternalPower = true
-                request.requiresNetworkConnectivity = false
-                
-                do {
-                    try BGTaskScheduler.shared.submit(request)
-                } catch let e {
-                    Logger.shared.log("App \(self.episodeId)", "Error submitting background task request: \(e)")
-                }
-            })
         }
         
         let timestamp = Int(CFAbsoluteTimeGetCurrent())
