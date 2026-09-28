@@ -313,6 +313,17 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private let firebaseRequestVerificationSecretStream = Promise<[String: String]>([:])
     
     private var urlSessions: [URLSession] = []
+    private func resolvedAppGroupContainer(bundleId: String) -> URL {
+        let appGroupName = "group.\(bundleId)"
+        if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) {
+            return url
+        }
+        let fallback = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("telegram-container", isDirectory: true)
+        try? FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+        return fallback
+    }
+
     private func urlSession(identifier: String) -> URLSession {
         if let existingSession = self.urlSessions.first(where: { $0.configuration.identifier == identifier }) {
             return existingSession
@@ -322,7 +333,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appGroupName = "group.\(baseAppBundleId)"
 
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        configuration.sharedContainerIdentifier = appGroupName
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) != nil {
+            configuration.sharedContainerIdentifier = appGroupName
+        }
         configuration.isDiscretionary = false
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
         self.urlSessions.append(session)
@@ -389,6 +402,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         }
         self.window = window
         self.nativeWindow = window
+        self.window?.makeKeyAndVisible()
         
         hostView.containerView.layer.addSublayer(MetalEngine.shared.rootLayer)
         
@@ -504,8 +518,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let appGroupName = "group.\(baseAppBundleId)"
-        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+        let maybeAppGroupUrl = self.resolvedAppGroupContainer(bundleId: baseAppBundleId)
         
         let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
         self.buildConfig = buildConfig
@@ -603,10 +616,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             |> runOn(Queue.mainQueue())
         }, autolockDeadine: autolockDeadine, encryptionProvider: OpenSSLEncryptionProvider(), deviceModelName: nil, useBetaFeatures: !buildConfig.isAppStoreBuild, isICloudEnabled: buildConfig.isICloudEnabled)
         
-        guard let appGroupUrl = maybeAppGroupUrl else {
-            self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
-            return true
-        }
+        let appGroupUrl = maybeAppGroupUrl
         
         var isDebugConfiguration = false
         #if DEBUG
