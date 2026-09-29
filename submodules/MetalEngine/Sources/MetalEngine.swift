@@ -156,7 +156,7 @@ open class MetalEngineSubjectLayer: SimpleLayer {
     }
     
     deinit {
-        MetalEngine.shared.impl.removeLayerSurfaceAllocation(layer: self)
+        MetalEngine.shared.impl?.removeLayerSurfaceAllocation(layer: self)
     }
     
     override public init(layer: Any) {
@@ -470,7 +470,7 @@ public protocol MetalEngineSubject: AnyObject {
 
 public extension MetalEngineSubject {
     func setNeedsUpdate() {
-        MetalEngine.shared.impl.addSubjectNeedsUpdate(subject: self)
+        MetalEngine.shared.impl?.addSubjectNeedsUpdate(subject: self)
     }
 }
 
