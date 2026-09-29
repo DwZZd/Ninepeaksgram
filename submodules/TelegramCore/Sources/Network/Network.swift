@@ -509,21 +509,17 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
             let useTempAuthKeys: Bool = true
             let context = MTContext(serialization: serialization, encryptionProvider: arguments.encryptionProvider, apiEnvironment: apiEnvironment, isTestingEnvironment: testingEnvironment, useTempAuthKeys: useTempAuthKeys)
             
-            if let networkSettings = networkSettings {
-                let useNetworkFramework: Bool
-                if let customValue = networkSettings.useNetworkFramework {
-                    useNetworkFramework = customValue
-                } else if arguments.useBetaFeatures {
-                    useNetworkFramework = true
-                } else {
-                    useNetworkFramework = false
-                }
-                
-                if useNetworkFramework {
-                    if #available(iOS 12.0, macOS 14.0, *) {
-                        context.makeTcpConnectionInterface = { delegate, delegateQueue in
-                            return NetworkFrameworkTcpConnectionInterface(delegate: delegate, delegateQueue: delegateQueue)
-                        }
+            let useNetworkFramework: Bool
+            if let customValue = networkSettings?.useNetworkFramework {
+                useNetworkFramework = customValue
+            } else {
+                useNetworkFramework = true
+            }
+            
+            if useNetworkFramework {
+                if #available(iOS 12.0, macOS 14.0, *) {
+                    context.makeTcpConnectionInterface = { delegate, delegateQueue in
+                        return NetworkFrameworkTcpConnectionInterface(delegate: delegate, delegateQueue: delegateQueue)
                     }
                 }
             }
