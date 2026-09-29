@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Select required Xcode
         shell: bash
@@ -55,8 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
-          COMMIT_COUNT="$(git rev-list --count HEAD)"
-          BUILD_NUMBER="$((COMMIT_COUNT + BUILD_NUMBER_OFFSET))"
+          BUILD_NUMBER="$((GITHUB_RUN_NUMBER + BUILD_NUMBER_OFFSET))"
 
           export TELEGRAM_FAKE_P12_PASSWORD=ci
           CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
@@ -111,7 +110,7 @@ jobs:
             build \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath="$CI_CODESIGNING" \
-            --configuration=release_arm64 \
+            --configuration=sideload_arm64 \
             --buildNumber="$BUILD_NUMBER" \
             --disableExtensions
 

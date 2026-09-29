@@ -202,6 +202,15 @@ class BazelCommandLine:
                 # Require DSYM files as build output.
                 '--output_groups=+dsyms',
             ] + self.common_release_args
+        elif configuration == 'sideload_arm64':
+            self.configuration_args = [
+                '-c', 'opt',
+                '--ios_multi_cpus=arm64',
+                '--watchos_cpus=arm64_32',
+                '--features=swift.enable_batch_mode',
+                '--features=dead_strip',
+                '--objc_enable_binary_stripping',
+            ]
         else:
             raise Exception('Unknown configuration {}'.format(configuration))
 
@@ -985,6 +994,7 @@ if __name__ == '__main__':
             'debug_sim_arm64',
             'release_sim_arm64',
             'release_arm64',
+            'sideload_arm64',
         ],
         required=True,
         help='Build configuration'
