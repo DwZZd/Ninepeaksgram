@@ -1,5 +1,4 @@
 import Foundation
-import CloudKit
 import MtProtoKit
 import SwiftSignalKit
 import EncryptionProvider
@@ -12,42 +11,8 @@ private enum FetchError {
 @available(iOS 10.0, *)
 private func fetchRawData(prefix: String) -> Signal<Data, FetchError> {
     return Signal { subscriber in
-        #if targetEnvironment(simulator)
+        subscriber.putError(.generic)
         return EmptyDisposable
-        #else
-        let container = CKContainer.default()
-        let publicDatabase = container.database(with: .public)
-        let recordId = CKRecord.ID(recordName: "emergency-datacenter-\(prefix)")
-        publicDatabase.fetch(withRecordID: recordId, completionHandler: { record, error in
-            if let error = error {
-                print("publicDatabase.fetch error: \(error)")
-                let nsError = error as NSError
-                if nsError.domain == CKError.errorDomain, nsError.code == 1 {
-                    subscriber.putError(.networkUnavailable)
-                } else {
-                    subscriber.putError(.generic)
-                }
-            } else if let record = record {
-                guard let dataString = record.object(forKey: "data") as? String else {
-                    subscriber.putError(.generic)
-                    return
-                }
-                guard let data = Data(base64Encoded: dataString, options: [.ignoreUnknownCharacters]) else {
-                    subscriber.putError(.generic)
-                    return
-                }
-                var resultData = data
-                resultData.count = 256
-                subscriber.putNext(resultData)
-                subscriber.putCompletion()
-            } else {
-                subscriber.putError(.generic)
-            }
-        })
-        
-        return ActionDisposable {
-        }
-        #endif
     }
 }
 
