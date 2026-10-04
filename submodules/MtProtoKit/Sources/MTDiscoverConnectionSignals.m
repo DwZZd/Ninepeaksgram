@@ -1,5 +1,7 @@
 #import "MTDiscoverConnectionSignals.h"
 
+#import <os/log.h>
+
 #import "MTTcpConnection.h"
 #import <MtProtoKit/MTTransportScheme.h>
 #import <MtProtoKit/MTTcpTransport.h>
@@ -109,6 +111,7 @@
             [processedData swap:@true];
             if ([self isResponseValid:data payloadData:payloadData])
             {
+                os_log(OS_LOG_DEFAULT, "ninepeaks tcp ok %{public}s:%d", address.ip.UTF8String, (int)address.port);
                 if (MTLogEnabled()) {
                     MTLog(@"success tcp://%@:%d", address.ip, (int)address.port);
                 }
@@ -116,6 +119,7 @@
             }
             else
             {
+                os_log_error(OS_LOG_DEFAULT, "ninepeaks tcp invalid %{public}s:%d", address.ip.UTF8String, (int)address.port);
                 if (MTLogEnabled()) {
                     MTLog(@"failed tcp://%@:%d (invalid response)", address.ip, (int)address.port);
                 }
@@ -130,6 +134,7 @@
                 return nil;
             }];
             if (!received) {
+                os_log_error(OS_LOG_DEFAULT, "ninepeaks tcp closed %{public}s:%d", address.ip.UTF8String, (int)address.port);
                 if (MTLogEnabled()) {
                     MTLog(@"failed tcp://%@:%d (disconnected)", address.ip, (int)address.port);
                 }

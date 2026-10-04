@@ -1158,11 +1158,13 @@ struct ctr_state {
                         
                         if (_mtpSecret != nil) {
                             paddingSize = arc4random_uniform(16);
-                            if (paddingSize != 0) {
-                                arc4random_buf(padding, paddingSize);
-                            }
-                            length += (int32_t)paddingSize;
+                        } else {
+                            paddingSize = (uint32_t)arc4random_uniform(4) * 4;
                         }
+                        if (paddingSize != 0) {
+                            arc4random_buf(padding, paddingSize);
+                        }
+                        length += (int32_t)paddingSize;
                         
                         if (dataToSend.requestQuickAck) {
                             length |= 0x80000000;
@@ -1203,7 +1205,7 @@ struct ctr_state {
                             
                             int32_t controlVersion;
                             if (_mtpSecret == nil) {
-                                controlVersion = 0xdddddddd;
+                                controlVersion = 0xeeeeeeee;
                             } else if (_useIntermediateFormat) {
                                 controlVersion = 0xdddddddd;
                             } else {
