@@ -414,21 +414,8 @@ static void copyKeychainDictionaryKey(NSString * _Nonnull group, NSString * _Non
             if (nGlobalTimeDifference != nil)
                 _globalTimeDifference = [nGlobalTimeDifference doubleValue];
             
-            NSDictionary *datacenterAddressSetById = [keychain dictionaryForKey:@"datacenterAddressSetById" group:@"persistent"];
-            if (datacenterAddressSetById != nil) {
-                _datacenterAddressSetById = [[NSMutableDictionary alloc] initWithDictionary:datacenterAddressSetById];
-                if (MTLogEnabled()) {
-                    MTLog(@"[MTContext loaded datacenterAddressSetById: %@]", _datacenterAddressSetById);
-                }
-            }
-            
-            NSDictionary *datacenterManuallySelectedSchemeById = [keychain dictionaryForKey:@"datacenterManuallySelectedSchemeById_v1" group:@"persistent"];
-            if (datacenterManuallySelectedSchemeById != nil) {
-                _datacenterManuallySelectedSchemeById = [[NSMutableDictionary alloc] initWithDictionary:datacenterManuallySelectedSchemeById];
-                if (MTLogEnabled()) {
-                    MTLog(@"[MTContext loaded datacenterManuallySelectedSchemeById: %@]", _datacenterManuallySelectedSchemeById);
-                }
-            }
+            // Sideload builds persisted a backup DNS address that never completes
+            // the MTProto handshake. Always start from the compiled-in seed list.
             
             [_apiEnvironment.datacenterAddressOverrides enumerateKeysAndObjectsUsingBlock:^(NSNumber *nDatacenterId, MTDatacenterAddress *address, __unused BOOL *stop) {
                 _datacenterAddressSetById[nDatacenterId] = [[MTDatacenterAddressSet alloc] initWithAddressList:@[address]];
