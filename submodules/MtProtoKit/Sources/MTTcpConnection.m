@@ -897,6 +897,8 @@ struct ctr_state {
             if ([_mtpSecret isKindOfClass:[MTProxySecretType1 class]] || [_mtpSecret isKindOfClass:[MTProxySecretType2 class]]) {
                 _useIntermediateFormat = true;
             }
+        } else {
+            _useIntermediateFormat = true;
         }
         
         _resolveDisposable = [[MTMetaDisposable alloc] init];
@@ -1198,7 +1200,9 @@ struct ctr_state {
                             arc4random_buf(controlBytes, 64);
                             
                             int32_t controlVersion;
-                            if (_useIntermediateFormat) {
+                            if (_mtpSecret == nil) {
+                                controlVersion = 0xeeeeeeee;
+                            } else if (_useIntermediateFormat) {
                                 controlVersion = 0xdddddddd;
                             } else {
                                 controlVersion = 0xefefefef;
@@ -1258,19 +1262,18 @@ struct ctr_state {
                             uint32_t intHeader = 0;
                             memcpy(&intHeader, encryptedControlBytes, 4);
                             
-                            if (effectiveSecret) {
+                            if (intHeader == 0x44414548 ||
+                                intHeader == 0x54534f50 ||
+                                intHeader == 0x20544547 ||
+                                intHeader == 0x4954504f ||
+                                intHeader == 0xdddddddd ||
+                                intHeader == 0xeeeeeeee ||
+                                intHeader == 0xefefefef ||
+                                intHeader == 0x02010316) {
                                 if (retryCount == 9) {
                                     assert(false);
                                 } else {
-                                    if (intHeader == 0x44414548 ||
-                                        intHeader == 0x54534f50 ||
-                                        intHeader == 0x20544547 ||
-                                        intHeader == 0x4954504f ||
-                                        intHeader == 0xdddddddd ||
-                                        intHeader == 0xeeeeeeee ||
-                                        intHeader == 0x02010316) {
-                                        continue;
-                                    }
+                                    continue;
                                 }
                             }
                             
