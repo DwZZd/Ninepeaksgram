@@ -46,6 +46,7 @@ public func trace1(_ domain: String, what: @autoclosure() -> String) {
 public func registerLoggingFunctions() {
     setBridgingTraceFunction({ domain, what in
         if let what = what {
+            NSLog("[%@] %@", (domain as String?) ?? "MT", what as String)
             if let domain = domain {
                 Logger.shared.log(domain, what as String)
             } else {

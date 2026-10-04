@@ -27,7 +27,6 @@ import TelegramPresentationData
 import TelegramCallsUI
 import TelegramVoip
 import BuildConfig
-import BuildConfigExtra
 import DeviceCheck
 import AccountContext
 import OverlayStatusController
@@ -524,7 +523,6 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         
         let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
         self.buildConfig = buildConfig
-        let signatureDict = BuildConfigExtra.signatureDict()
         
         let apiId: Int32 = buildConfig.apiId
         let apiHash: String = buildConfig.apiHash
@@ -554,7 +552,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             tokenEnvironment = "production"
             #endif
             
-            let data = buildConfig.bundleData(withAppToken: token, tokenType: "apns", tokenEnvironment: tokenEnvironment, signatureDict: signatureDict)
+            let data = buildConfig.bundleData(withAppToken: token, tokenType: "apns", tokenEnvironment: tokenEnvironment, signatureDict: nil)
             if let data = data, let _ = String(data: data, encoding: .utf8) {
             } else {
                 Logger.shared.log("data", "can't deserialize")
