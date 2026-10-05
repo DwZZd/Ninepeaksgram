@@ -125,8 +125,25 @@ public extension Message {
         return false
     }
 
+    var isTimedSecretMedia: Bool {
+        for attribute in self.attributes {
+            let timeout: Int32
+            if let attribute = attribute as? AutoremoveTimeoutMessageAttribute {
+                timeout = attribute.timeout
+            } else if let attribute = attribute as? AutoclearTimeoutMessageAttribute {
+                timeout = attribute.timeout
+            } else {
+                continue
+            }
+            if timeout > 0 && timeout <= 60 && timeout != viewOnceTimeout {
+                return true
+            }
+        }
+        return false
+    }
+
     var shouldPersistViewOnceMedia: Bool {
-        return self.isViewOnceMedia && MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete
+        return (self.isViewOnceMedia || self.isTimedSecretMedia) && MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete
     }
 
     var minAutoremoveOrClearTimeout: Int32? {
