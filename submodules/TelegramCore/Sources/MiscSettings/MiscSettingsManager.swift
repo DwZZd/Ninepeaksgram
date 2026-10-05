@@ -82,7 +82,7 @@ public final class MiscSettingsManager {
     }
     
     public var shouldDisableViewOnceAutoDelete: Bool {
-        return isEnabled && disableViewOnceAutoDelete
+        return disableViewOnceAutoDelete
     }
     
     public var shouldBypassScreenshotProtection: Bool {
