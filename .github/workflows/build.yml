@@ -64,7 +64,7 @@ jobs:
             echo "::error::TELEGRAM_API_ID and TELEGRAM_API_HASH repository secrets are required"
             exit 1
           fi
-          CI_CONFIG="$RUNNER_TEMP/appstore-configuration.json"
+          export CI_CONFIG="$RUNNER_TEMP/appstore-configuration.json"
           python3 -c 'import json,os; cfg=json.load(open("build-system/appstore-configuration.json")); cfg["api_id"]=os.environ["TELEGRAM_API_ID"]; cfg["api_hash"]=os.environ["TELEGRAM_API_HASH"]; json.dump(cfg, open(os.environ["CI_CONFIG"],"w"), indent="\t"); print("Applied API credentials from secrets")'
 
           export TELEGRAM_FAKE_P12_PASSWORD=ci
