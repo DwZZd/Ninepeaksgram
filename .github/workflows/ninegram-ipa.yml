@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Ninegram IPA
 
 on:
   push:
@@ -9,10 +9,6 @@ on:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ios-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -58,7 +54,9 @@ jobs:
         run: |
           set -euo pipefail
           BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
-          BUILD_NUMBER="$((GITHUB_RUN_NUMBER + BUILD_NUMBER_OFFSET))"
+          # New workflow run numbers start at 1. Keep the IPA newer than the
+          # builds already installed from the old workflow.
+          BUILD_NUMBER="$((GITHUB_RUN_NUMBER + BUILD_NUMBER_OFFSET + 400))"
 
           if [[ -z "${TELEGRAM_API_ID}" || -z "${TELEGRAM_API_HASH}" ]]; then
             echo "::error::TELEGRAM_API_ID and TELEGRAM_API_HASH repository secrets are required"
