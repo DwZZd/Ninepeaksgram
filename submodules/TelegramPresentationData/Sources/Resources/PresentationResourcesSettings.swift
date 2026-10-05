@@ -26,7 +26,7 @@ private func addRoundedRectPath(context: CGContext, rect: CGRect, radius: CGFloa
     context.restoreGState()
 }
 
-private func renderIcon(name: String, scaleFactor: CGFloat = 1.0, backgroundColors: [UIColor]? = nil) -> UIImage? {
+private func renderIcon(name: String, scaleFactor: CGFloat = 1.0, backgroundColors: [UIColor]? = nil, rounded: Bool = false) -> UIImage? {
     return generateImage(CGSize(width: 29.0, height: 29.0), contextGenerator: { size, context in
         let bounds = CGRect(origin: CGPoint(), size: size)
         context.clear(bounds)
@@ -59,6 +59,10 @@ private func renderIcon(name: String, scaleFactor: CGFloat = 1.0, backgroundColo
                 drawImage(image, in: CGRect(origin: CGPoint(x: (bounds.width - imageSize.width) * 0.5, y: (bounds.height - imageSize.height) * 0.5), size: imageSize))
             }
         } else {
+            if rounded {
+                addRoundedRectPath(context: context, rect: bounds, radius: 7.0)
+                context.clip()
+            }
             if let image = UIImage(bundleImageName: name) {
                 let imageSize: CGSize
                 if scaleFactor == 1.0 {
@@ -93,7 +97,7 @@ public struct PresentationResourcesSettings {
     public static let premiumGift = renderIcon(name: "Settings/Menu/Gift")
     public static let business = renderIcon(name: "Settings/Menu/Business", backgroundColors: [UIColor(rgb: 0xA95CE3), UIColor(rgb: 0xF16B80)])
     public static let myProfile = renderIcon(name: "Settings/Menu/Profile")
-    public static let ghostgram = renderIcon(name: "Settings/Menu/GhostgramSettings")
+    public static let ghostgram = renderIcon(name: "Settings/Menu/GhostgramSettings", rounded: true)
     public static let reactions = renderIcon(name: "Settings/Menu/Reactions")
     public static let balance = renderIcon(name: "Settings/Menu/Balance", scaleFactor: 0.97, backgroundColors: [UIColor(rgb: 0x34c759)])
     public static let affiliateProgram = renderIcon(name: "Settings/Menu/AffiliateProgram")

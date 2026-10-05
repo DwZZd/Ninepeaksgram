@@ -269,6 +269,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private var contextValue: AuthorizedApplicationContext?
     private let context = Promise<AuthorizedApplicationContext?>()
     private let contextDisposable = MetaDisposable()
+    private let desktopLinkDisposable = MetaDisposable()
     
     private var authContextValue: UnauthorizedApplicationContext?
     private let authContext = Promise<UnauthorizedApplicationContext?>()
@@ -1070,6 +1071,16 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             }, appDelegate: self)
             
             presentationDataPromise.set(sharedContext.presentationData)
+            
+            self.desktopLinkDisposable.set((sharedContext.activeAccountContexts
+            |> deliverOnMainQueue).start(next: { contexts in
+                if let primary = contexts.primary {
+                    NinegramDesktopLink.mirrorIfNeeded(account: primary.account)
+                }
+                for entry in contexts.accounts {
+                    NinegramDesktopLink.mirrorIfNeeded(account: entry.1.account)
+                }
+            }))
             
             sharedContext.presentGlobalController = { [weak self] c, a in
                 guard let strongSelf = self else {

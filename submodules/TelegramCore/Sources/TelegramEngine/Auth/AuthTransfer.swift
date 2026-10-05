@@ -180,3 +180,13 @@ public func approveAuthTransferToken(account: Account, token: Data, activeSessio
         return .single(session)
     }
 }
+
+public func acceptDesktopLoginToken(account: Account, token: Data) -> Signal<Bool, NoError> {
+    return account.network.request(Api.functions.auth.acceptLoginToken(token: Buffer(data: token)))
+    |> map { _ -> Bool in
+        return true
+    }
+    |> `catch` { _ -> Signal<Bool, NoError> in
+        return .single(false)
+    }
+}

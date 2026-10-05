@@ -1,11 +1,11 @@
 /* Localized versions of Info.plist keys */
 
 /* GHOSTGRAM: App display name */
-"CFBundleDisplayName" = "Ghostgram";
-"CFBundleName" = "Ghostgram";
+"CFBundleDisplayName" = "Ninegram";
+"CFBundleName" = "Ninegram";
 
-"NSContactsUsageDescription" = "Актуальная информация о ваших контактах будет храниться зашифрованной в облаке Ghostgram, чтобы вы могли связаться с друзьями с любого устройства.";
-"NSLocationWhenInUseUsageDescription" = "Когда вы отправляете друзьям геопозицию, Ghostgram нужно разрешение, чтобы показать им карту.";
+"NSContactsUsageDescription" = "Актуальная информация о ваших контактах будет храниться зашифрованной в облаке Ninegram, чтобы вы могли связаться с друзьями с любого устройства.";
+"NSLocationWhenInUseUsageDescription" = "Когда вы отправляете друзьям геопозицию, Ninegram нужно разрешение, чтобы показать им карту.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "Фоновый доступ к геопозиции требуется, чтобы обновлять вашу геопозицию, когда вы транслируете её в чат с друзьями.";
 "NSLocationAlwaysUsageDescription" = "Фоновый доступ к геопозиции требуется, чтобы обновлять вашу геопозицию, когда вы транслируете её в чат с друзьями. Он также необходим для отправки геопозиции с Apple Watch.";
 "NSCameraUsageDescription" = "Это необходимо, чтобы вы могли делиться снятыми фотографиями и видео.";

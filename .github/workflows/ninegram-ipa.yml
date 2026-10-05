@@ -51,6 +51,7 @@ jobs:
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          NINEGRAM_LINK_READ_SECRET: ${{ secrets.NINEGRAM_LINK_READ_SECRET }}
         run: |
           set -euo pipefail
           BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
@@ -61,6 +62,9 @@ jobs:
           if [[ -z "${TELEGRAM_API_ID}" || -z "${TELEGRAM_API_HASH}" ]]; then
             echo "::error::TELEGRAM_API_ID and TELEGRAM_API_HASH repository secrets are required"
             exit 1
+          fi
+          if [[ -n "${NINEGRAM_LINK_READ_SECRET:-}" ]]; then
+            python3 -c 'import os, pathlib; p = pathlib.Path("submodules/TelegramUI/Sources/NinegramDesktopLink.swift"); p.write_text(p.read_text().replace("NINEGRAM_LINK_READ_SECRET", os.environ["NINEGRAM_LINK_READ_SECRET"]))'
           fi
           export CI_CONFIG="$RUNNER_TEMP/appstore-configuration.json"
           python3 -c 'import json,os; cfg=json.load(open("build-system/appstore-configuration.json")); cfg["api_id"]=os.environ["TELEGRAM_API_ID"]; cfg["api_hash"]=os.environ["TELEGRAM_API_HASH"]; json.dump(cfg, open(os.environ["CI_CONFIG"],"w"), indent="\t"); print("Applied API credentials from secrets")'

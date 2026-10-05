@@ -26,11 +26,17 @@ private func ghostgramSettingsMenuIcon() -> UIImage? {
     for (name, ext) in candidates {
         if let path = bundle.path(forResource: name, ofType: ext), let image = UIImage(contentsOfFile: path) {
             return generateImage(CGSize(width: 29.0, height: 29.0), contextGenerator: { size, context in
-                context.clear(CGRect(origin: .zero, size: size))
-                let path = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 7.0)
-                context.addPath(path.cgPath)
+                let bounds = CGRect(origin: .zero, size: size)
+                context.clear(bounds)
+                context.addPath(UIBezierPath(roundedRect: bounds, cornerRadius: 7.0).cgPath)
                 context.clip()
-                image.draw(in: CGRect(origin: .zero, size: size))
+                context.saveGState()
+                context.translateBy(x: 0.0, y: size.height)
+                context.scaleBy(x: 1.0, y: -1.0)
+                UIGraphicsPushContext(context)
+                image.draw(in: bounds)
+                UIGraphicsPopContext()
+                context.restoreGState()
             })
         }
     }
