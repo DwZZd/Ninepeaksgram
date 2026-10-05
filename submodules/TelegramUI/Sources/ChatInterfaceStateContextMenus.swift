@@ -732,7 +732,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                     }
                 }
             } else if let image = media as? TelegramMediaImage {
-                if !messages[0].containsSecretMedia {
+                if !messages[0].containsSecretMedia || messages[0].shouldPersistViewOnceMedia {
                     loadCopyMediaResource = largestImageRepresentation(image.representations)?.resource
                 }
             } else if let dice = media as? TelegramMediaDice {
@@ -1403,7 +1403,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             }
         }
         
-        if resourceAvailable, !message.containsSecretMedia && !isCopyProtected {
+        if resourceAvailable, (!message.containsSecretMedia || message.shouldPersistViewOnceMedia) && !isCopyProtected {
             var mediaReference: AnyMediaReference?
             var isVideo = false
             for media in message.media {
@@ -2662,7 +2662,9 @@ func chatAvailableMessageActionsImpl(engine: TelegramEngine, accountPeerId: Peer
                     }
                 }
                 
-                if (message.isCopyProtected() || message.containsSecretMedia) && !MiscSettingsManager.shared.shouldBypassCopyProtection {
+                if message.isCopyProtected() && !MiscSettingsManager.shared.shouldBypassCopyProtection {
+                    isCopyProtected = true
+                } else if message.containsSecretMedia && !message.shouldPersistViewOnceMedia {
                     isCopyProtected = true
                 }
                 for media in message.media {
@@ -2767,7 +2769,7 @@ func chatAvailableMessageActionsImpl(engine: TelegramEngine, accountPeerId: Peer
                                 banPeer = nil
                             }
                         }
-                        if !message.containsSecretMedia && !isAction && !isShareProtected {
+                        if (!message.containsSecretMedia || message.shouldPersistViewOnceMedia) && !isAction && !isShareProtected {
                             let copyProtectedCheck = message.isCopyProtected() && !MiscSettingsManager.shared.shouldBypassCopyProtection
                             if message.id.peerId.namespace != Namespaces.Peer.SecretChat && !copyProtectedCheck {
                                 if !(message.flags.isSending || message.flags.contains(.Failed)) {
@@ -2784,7 +2786,7 @@ func chatAvailableMessageActionsImpl(engine: TelegramEngine, accountPeerId: Peer
                             }
                         }
                     } else if let group = peer as? TelegramGroup {
-                        if message.id.peerId.namespace != Namespaces.Peer.SecretChat && !message.containsSecretMedia {
+                        if message.id.peerId.namespace != Namespaces.Peer.SecretChat && (!message.containsSecretMedia || message.shouldPersistViewOnceMedia) {
                             let copyProtectedCheck = message.isCopyProtected() && !MiscSettingsManager.shared.shouldBypassCopyProtection
                             if !isAction && !copyProtectedCheck && !isShareProtected {
                                 if !(message.flags.isSending || message.flags.contains(.Failed)) {
@@ -2806,7 +2808,7 @@ func chatAvailableMessageActionsImpl(engine: TelegramEngine, accountPeerId: Peer
                         }
                     } else if let user = peer as? TelegramUser {
                         let copyProtectedCheck = message.isCopyProtected() && !MiscSettingsManager.shared.shouldBypassCopyProtection
-                        if !isScheduled && message.id.peerId.namespace != Namespaces.Peer.SecretChat && !message.containsSecretMedia && !isAction && !message.id.peerId.isReplies && !copyProtectedCheck && !isShareProtected {
+                        if !isScheduled && message.id.peerId.namespace != Namespaces.Peer.SecretChat && (!message.containsSecretMedia || message.shouldPersistViewOnceMedia) && !isAction && !message.id.peerId.isReplies && !copyProtectedCheck && !isShareProtected {
                             if !(message.flags.isSending || message.flags.contains(.Failed)) {
                                 optionsMap[id]!.insert(.forward)
                             }

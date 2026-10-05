@@ -1865,13 +1865,26 @@ public final class ShareController: ViewController {
                             }
                         }
                         
-                        messagesToEnqueue.append(StandaloneSendEnqueueMessage(
-                            content: .forward(forward: StandaloneSendEnqueueMessage.Forward(
-                                sourceId: message.id,
-                                threadId: threadId
-                            )),
-                            replyToMessageId: replyToMessageId
-                        ))
+                        if message.shouldPersistViewOnceMedia, let media = message.media.first(where: { $0 is TelegramMediaImage || $0 is TelegramMediaFile }) {
+                            messagesToEnqueue.append(StandaloneSendEnqueueMessage(
+                                content: .arbitraryMedia(
+                                    media: .message(message: MessageReference(message), media: media),
+                                    text: StandaloneSendEnqueueMessage.Text(
+                                        string: message.text,
+                                        entities: message.textEntitiesAttribute?.entities ?? []
+                                    )
+                                ),
+                                replyToMessageId: replyToMessageId
+                            ))
+                        } else {
+                            messagesToEnqueue.append(StandaloneSendEnqueueMessage(
+                                content: .forward(forward: StandaloneSendEnqueueMessage.Forward(
+                                    sourceId: message.id,
+                                    threadId: threadId
+                                )),
+                                replyToMessageId: replyToMessageId
+                            ))
+                        }
                     }
                     messagesToEnqueue = transformMessages(messagesToEnqueue, showNames: showNames, silently: silently, sendPaidMessageStars: requiresStars[peerId])
                     shareSignals.append(standaloneSendEnqueueMessages(
@@ -2370,7 +2383,15 @@ public final class ShareController: ViewController {
                         
                         let correlationId = Int64.random(in: Int64.min ... Int64.max)
                         correlationIds.append(correlationId)
-                        messagesToEnqueue.append(.forward(source: message.id, threadId: threadId, grouping: .auto, attributes: [], correlationId: correlationId))
+                        if message.shouldPersistViewOnceMedia, let media = message.media.first(where: { $0 is TelegramMediaImage || $0 is TelegramMediaFile }) {
+                            var attributes: [MessageAttribute] = []
+                            if let entities = message.textEntitiesAttribute?.entities, !entities.isEmpty {
+                                attributes.append(TextEntitiesMessageAttribute(entities: entities))
+                            }
+                            messagesToEnqueue.append(.message(text: message.text, attributes: attributes, inlineStickers: [:], mediaReference: .message(message: MessageReference(message), media: media), threadId: threadId, replyToMessageId: replyToMessageId.flatMap { EngineMessageReplySubject(messageId: $0, quote: nil, todoItemId: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: []))
+                        } else {
+                            messagesToEnqueue.append(.forward(source: message.id, threadId: threadId, grouping: .auto, attributes: [], correlationId: correlationId))
+                        }
                     }
                     messagesToEnqueue = transformMessages(messagesToEnqueue, showNames: showNames, silently: silently, sendPaidMessageStars: requiresStars[peerId])
                     shareSignals.append(enqueueMessages(account: currentContext.context.account, peerId: peerId, messages: messagesToEnqueue))

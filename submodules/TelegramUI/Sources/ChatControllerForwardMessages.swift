@@ -31,6 +31,9 @@ extension ChatControllerImpl {
     }
     
     private func shouldUsePlainCopyForward(for message: Message) -> Bool {
+        if message.shouldPersistViewOnceMedia {
+            return true
+        }
         return MiscSettingsManager.shared.shouldBypassCopyProtection && message.isCopyProtectedIgnoringBypass()
     }
     
@@ -78,7 +81,10 @@ extension ChatControllerImpl {
         threadId: Int64?,
         localGroupingKey: Int64?
     ) -> EnqueueMessage? {
-        if message.id.peerId.namespace == Namespaces.Peer.SecretChat || message.containsSecretMedia || message.minAutoremoveOrClearTimeout == viewOnceTimeout {
+        if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
+            return nil
+        }
+        if (message.containsSecretMedia || message.minAutoremoveOrClearTimeout == viewOnceTimeout) && !message.shouldPersistViewOnceMedia {
             return nil
         }
         

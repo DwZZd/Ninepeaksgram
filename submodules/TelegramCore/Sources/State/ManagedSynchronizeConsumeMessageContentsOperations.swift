@@ -110,17 +110,8 @@ func managedSynchronizeConsumeMessageContentOperations(postbox: Postbox, network
 }
 
 private func synchronizeConsumeMessageContents(transaction: Transaction, network: Network, stateManager: AccountStateManager, peerId: PeerId, operation: SynchronizeConsumeMessageContentsOperation) -> Signal<Void, NoError> {
-    let messageIds = operation.messageIds.filter { messageId in
-        guard let message = transaction.getMessage(messageId) else {
-            return true
-        }
-        return !message.shouldPersistViewOnceMedia
-    }
-    if messageIds.isEmpty {
-        return .complete()
-    }
     if peerId.namespace == Namespaces.Peer.CloudUser || peerId.namespace == Namespaces.Peer.CloudGroup {
-        return network.request(Api.functions.messages.readMessageContents(id: messageIds.map { $0.id }))
+        return network.request(Api.functions.messages.readMessageContents(id: operation.messageIds.map { $0.id }))
         |> map(Optional.init)
         |> `catch` { _ -> Signal<Api.messages.AffectedMessages?, NoError> in
             return .single(nil)
@@ -137,7 +128,7 @@ private func synchronizeConsumeMessageContents(transaction: Transaction, network
         }
     } else if peerId.namespace == Namespaces.Peer.CloudChannel {
         if let peer = transaction.getPeer(peerId), let inputChannel = apiInputChannel(peer) {
-            return network.request(Api.functions.channels.readMessageContents(channel: inputChannel, id: messageIds.map { $0.id }))
+            return network.request(Api.functions.channels.readMessageContents(channel: inputChannel, id: operation.messageIds.map { $0.id }))
             |> map(Optional.init)
             |> `catch` { _ -> Signal<Api.Bool?, NoError> in
                 return .single(nil)

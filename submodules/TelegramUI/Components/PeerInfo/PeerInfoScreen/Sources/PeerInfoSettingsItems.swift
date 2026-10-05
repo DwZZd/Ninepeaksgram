@@ -25,7 +25,11 @@ private func ghostgramSettingsMenuIcon() -> UIImage? {
     ]
     for (name, ext) in candidates {
         if let path = bundle.path(forResource: name, ofType: ext), let image = UIImage(contentsOfFile: path) {
-            return generateImage(CGSize(width: 29.0, height: 29.0), contextGenerator: { size, _ in
+            return generateImage(CGSize(width: 29.0, height: 29.0), contextGenerator: { size, context in
+                context.clear(CGRect(origin: .zero, size: size))
+                let path = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 7.0)
+                context.addPath(path.cgPath)
+                context.clip()
                 image.draw(in: CGRect(origin: .zero, size: size))
             })
         }
@@ -199,7 +203,7 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
         items[.myProfile]!.append(PeerInfoScreenDisclosureItem(id: 0, text: presentationData.strings.Settings_MyProfile, icon: PresentationResourcesSettings.myProfile, action: {
             interaction.openSettings(.profile)
         }))
-        items[.myProfile]!.append(PeerInfoScreenDisclosureItem(id: 1001, text: "Ghostgram Settings", icon: ghostgramSettingsMenuIcon(), action: {
+        items[.myProfile]!.append(PeerInfoScreenDisclosureItem(id: 1001, text: "Ninegram", icon: ghostgramSettingsMenuIcon(), action: {
             interaction.openSettings(.ghostgram)
         }))
         
@@ -233,23 +237,7 @@ func settingsItems(showProfileId: Bool, data: PeerInfoScreenData?, context: Acco
         swiftgramLabel = .none
     }
 
-    let hasNewSGProFeatures = {
-        return false
-    }
-    let swiftgramProLabel: PeerInfoScreenDisclosureItem.Label
-    if hasNewSGProFeatures() {
-        swiftgramProLabel = .titleBadge(presentationData.strings.Settings_New, presentationData.theme.list.itemAccentColor)
-    } else {
-        swiftgramProLabel = .none
-    }
-    
-    
     let sgWebSettings = context.currentAppConfiguration.with({ $0 }).sgWebSettings
-    if sgWebSettings.global.paymentsEnabled || context.sharedContext.immediateSGStatus.status > 1 {
-        items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 0, label: swiftgramProLabel, text: "Swiftgram Pro", icon: nil, action: {
-            interaction.openSettings(.swiftgramPro)
-        }))
-    }
     items[.swiftgram]!.append(PeerInfoScreenDisclosureItem(id: 1, label: swiftgramLabel, text: "Swiftgram", icon: nil, action: {
         interaction.openSettings(.swiftgram)
     }))

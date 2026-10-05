@@ -17,7 +17,12 @@ public final class AntiDeleteManager {
     
     /// Включено ли сохранение удалённых сообщений
     public var isEnabled: Bool {
-        get { defaults.bool(forKey: enabledKey) }
+        get {
+            if defaults.object(forKey: enabledKey) == nil {
+                return true
+            }
+            return defaults.bool(forKey: enabledKey)
+        }
         set { defaults.set(newValue, forKey: enabledKey) }
     }
     
@@ -147,6 +152,11 @@ public final class AntiDeleteManager {
         }
         if defaults.object(forKey: archiveMediaKey) == nil {
             defaults.set(true, forKey: archiveMediaKey)
+        }
+        if defaults.object(forKey: "antiDelete.keepAllV2") == nil {
+            defaults.set(true, forKey: enabledKey)
+            defaults.set(true, forKey: archiveMediaKey)
+            defaults.set(true, forKey: "antiDelete.keepAllV2")
         }
         if defaults.object(forKey: deletedMessageTransparencyKey) == nil {
             defaults.set(Self.defaultDeletedMessageTransparency, forKey: deletedMessageTransparencyKey)

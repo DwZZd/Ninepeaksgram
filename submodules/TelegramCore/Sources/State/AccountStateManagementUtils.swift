@@ -4524,6 +4524,9 @@ func replayFinalState(
                 }
                 deletedMessageIds.append(contentsOf: ids.map { .messageId($0) })
             case let .UpdateMinAvailableMessage(id):
+                if AntiDeleteManager.shared.isEnabled {
+                    break
+                }
                 if let message = transaction.getMessage(id) {
                     updatePeerChatInclusionWithMinTimestamp(transaction: transaction, id: id.peerId, minTimestamp: message.timestamp, forceRootGroupIfNotExists: false)
                 }

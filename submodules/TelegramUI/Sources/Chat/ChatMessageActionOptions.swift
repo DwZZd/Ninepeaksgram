@@ -427,7 +427,7 @@ private func generateChatReplyOptionItems(selfController: ChatControllerImpl, ch
             if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
                 canReplyInAnotherChat = false
             }
-            if message.minAutoremoveOrClearTimeout == viewOnceTimeout {
+            if message.minAutoremoveOrClearTimeout == viewOnceTimeout && !message.shouldPersistViewOnceMedia {
                 canReplyInAnotherChat = false
             }
             if let channel = message.peers[message.id.peerId] as? TelegramChannel, channel.isMonoForum {

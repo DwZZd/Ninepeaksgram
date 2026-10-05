@@ -189,6 +189,7 @@ public final class SecretMediaPreviewController: ViewController {
         
         let backItem = UIBarButtonItem(backButtonAppearanceWithTitle: presentationData.strings.Common_Back, target: self, action: #selector(self.donePressed))
         self.navigationItem.leftBarButtonItem = backItem
+        self.navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Сжечь", style: .plain, target: self, action: #selector(self.burnPressed))
         
         self.statusBar.statusBarStyle = .White
         
@@ -239,6 +240,12 @@ public final class SecretMediaPreviewController: ViewController {
     
     @objc func donePressed() {
         self.dismiss(forceAway: false)
+    }
+    
+    @objc func burnPressed() {
+        let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: self.messageId).start()
+        self.navigationItem.rightBarButtonItem?.isEnabled = false
+        self.navigationItem.rightBarButtonItem?.title = "Сожжено"
     }
     
     public override func loadDisplayNode() {

@@ -143,7 +143,18 @@ public extension Message {
     }
 
     var shouldPersistViewOnceMedia: Bool {
-        return (self.isViewOnceMedia || self.isTimedSecretMedia) && MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete
+        if !MiscSettingsManager.shared.shouldDisableViewOnceAutoDelete {
+            return false
+        }
+        if self.isViewOnceMedia || self.isTimedSecretMedia {
+            return true
+        }
+        for attribute in self.attributes {
+            if attribute is AutoremoveTimeoutMessageAttribute || attribute is AutoclearTimeoutMessageAttribute {
+                return true
+            }
+        }
+        return false
     }
 
     var minAutoremoveOrClearTimeout: Int32? {

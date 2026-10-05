@@ -3,6 +3,35 @@ import Postbox
 import TelegramApi
 import SwiftSignalKit
 
+func _internal_burnEphemeralMediaForSender(postbox: Postbox, messageId: MessageId) -> Signal<Void, NoError> {
+    return postbox.transaction { transaction -> Void in
+        guard let message = transaction.getMessage(messageId), message.flags.contains(.Incoming) else {
+            return
+        }
+        if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
+            if let state = transaction.getPeerChatState(message.id.peerId) as? SecretChatState {
+                var layer: SecretChatLayer?
+                switch state.embeddedState {
+                case .terminated, .handshake:
+                    break
+                case .basicLayer:
+                    layer = .layer8
+                case let .sequenceBasedLayer(sequenceState):
+                    layer = sequenceState.layerNegotiationState.activeLayer.secretChatLayer
+                }
+                if let layer, let globallyUniqueId = message.globallyUniqueId {
+                    let updatedState = addSecretChatOutgoingOperation(transaction: transaction, peerId: message.id.peerId, operation: SecretChatOutgoingOperationContents.readMessagesContent(layer: layer, actionGloballyUniqueId: Int64.random(in: Int64.min ... Int64.max), globallyUniqueIds: [globallyUniqueId]), state: state)
+                    if updatedState != state {
+                        transaction.setPeerChatState(message.id.peerId, state: updatedState)
+                    }
+                }
+            }
+        } else {
+            addSynchronizeConsumeMessageContentsOperation(transaction: transaction, messageIds: [message.id])
+        }
+    }
+}
+
 func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messageId: MessageId) -> Signal<Void, NoError> {
     return postbox.transaction { transaction -> Void in
         if let message = transaction.getMessage(messageId), message.flags.contains(.Incoming) {

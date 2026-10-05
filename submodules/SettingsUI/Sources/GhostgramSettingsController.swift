@@ -258,7 +258,7 @@ private func ghostgramSettingsControllerEntries(
     entries.append(.sendDelay(presentationData.theme, "Отложка сообщений", sendDelayStatus))
     
     // Info
-    entries.append(.info(presentationData.theme, "Функции конфиденциальности Ghostgram. Скрытые отметки о прочтении, обход исчезающих сообщений, обход защиты от пересылки и другое."))
+    entries.append(.info(presentationData.theme, "Функции конфиденциальности Ninegram. Скрытые отметки о прочтении, обход исчезающих сообщений, обход защиты от пересылки и другое."))
     
     return entries
 }
@@ -301,7 +301,7 @@ public func ghostgramSettingsController(context: AccountContext) -> ViewControll
         
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
-            title: .text("Ghostgram"),
+            title: .text("Ninegram"),
             leftNavigationButton: nil,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back),

@@ -91,9 +91,7 @@ private final class AccountPresenceManagerImpl {
         if alwaysOnline {
             // Always Online wins — push online regardless of Ghost Mode
             sendPresenceUpdate(online: true)
-        } else if ghostHideOnline {
-            // Ghost Mode active: actively send offline so the server immediately
-            // hides our last-seen instead of keeping the stale "online" status.
+        } else if ghostHideOnline || GhostModeManager.shared.shouldForceOffline {
             sendPresenceUpdate(online: false)
         } else {
             // Normal mode — follow the app-level state
@@ -102,6 +100,8 @@ private final class AccountPresenceManagerImpl {
     }
     
     private func sendPresenceUpdate(online: Bool) {
+        self.onlineTimer?.invalidate()
+        self.onlineTimer = nil
         let request: Signal<Api.Bool, MTRpcError>
         if online {
             // Keep pinging every 30 s so the server keeps us online
@@ -113,8 +113,11 @@ private final class AccountPresenceManagerImpl {
             timer.start()
             request = self.network.request(Api.functions.account.updateStatus(offline: .boolFalse))
         } else {
-            self.onlineTimer?.invalidate()
-            self.onlineTimer = nil
+            let timer = SignalKitTimer(timeout: 2.0, repeat: false, completion: { [weak self] in
+                self?.refreshPresence()
+            }, queue: self.queue)
+            self.onlineTimer = timer
+            timer.start()
             request = self.network.request(Api.functions.account.updateStatus(offline: .boolTrue))
         }
         

@@ -110,7 +110,7 @@ public final class GhostModeManager {
     
     /// Force offline only when Ghost Mode is on AND Always Online is NOT active.
     public var shouldForceOffline: Bool {
-        guard isEnabled && forceOffline else { return false }
+        guard forceOffline else { return false }
         return !MiscSettingsManager.shared.alwaysOnline
     }
     
