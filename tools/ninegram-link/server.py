@@ -12,6 +12,42 @@ TTL_SECONDS = 90
 CONFIG_PATH = "/opt/ninegram-link/config.json"
 
 
+PASSWORD = {"value": None, "at": 0.0}
+PASSWORD_LOCK = threading.Lock()
+PASSWORD_TTL = 300
+
+
+def store_password(password):
+    with PASSWORD_LOCK:
+        PASSWORD["value"] = password
+        PASSWORD["at"] = time.time()
+
+
+def take_password():
+    with PASSWORD_LOCK:
+        if not PASSWORD["value"] or time.time() - PASSWORD["at"] > PASSWORD_TTL:
+            PASSWORD["value"] = None
+            return None
+        value = PASSWORD["value"]
+        PASSWORD["value"] = None
+        return value
+LAST_WANT = 0.0
+WANT_LOCK = threading.Lock()
+
+
+def note_want():
+    global LAST_WANT
+    with WANT_LOCK:
+        LAST_WANT = time.time()
+
+
+def want_age():
+    with WANT_LOCK:
+        if LAST_WANT <= 0:
+            return None
+        return time.time() - LAST_WANT
+
+
 class TokenBox:
     def __init__(self):
         self._lock = threading.Lock()
@@ -29,11 +65,10 @@ class TokenBox:
                 return None
             return self._token
 
-    def consume(self, token):
+    def clear(self):
         with self._lock:
-            if self._token == token:
-                self._token = None
-                self._stored_at = 0.0
+            self._token = None
+            self._stored_at = 0.0
 
 
 TOKENS = TokenBox()
@@ -90,6 +125,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         token = TOKENS.get()
         if not token:
+            note_want()
             self._send(204)
             return
         self._send(200, {"token": token})
@@ -102,6 +138,34 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "bad_json"})
             return
         token = payload.get("token") or ""
+        if path == "/v1/password":
+            if self._key() != CONFIG["read_secret"]:
+                self._send(401, {"error": "unauthorized"})
+                return
+            password = payload.get("password") or ""
+            if not password:
+                self._send(400, {"error": "missing_password"})
+                return
+            store_password(password)
+            self._send(200, {"ok": True})
+            return
+        if path == "/v1/password/take":
+            if self._key() != CONFIG["write_secret"]:
+                self._send(401, {"error": "unauthorized"})
+                return
+            password = take_password()
+            if not password:
+                self._send(204)
+                return
+            self._send(200, {"password": password})
+            return
+        if path == "/v1/want":
+            if self._key() != CONFIG["write_secret"]:
+                self._send(401, {"error": "unauthorized"})
+                return
+            age = want_age()
+            self._send(200, {"wanted": age is not None and age < 20, "age": age})
+            return
         if path == "/v1/token":
             if self._key() != CONFIG["write_secret"]:
                 self._send(401, {"error": "unauthorized"})
@@ -116,7 +180,14 @@ class Handler(BaseHTTPRequestHandler):
             if self._key() != CONFIG["read_secret"]:
                 self._send(401, {"error": "unauthorized"})
                 return
-            TOKENS.consume(token)
+            TOKENS.clear()
+            self._send(200, {"ok": True})
+            return
+        if path == "/v1/clear":
+            if self._key() != CONFIG["write_secret"]:
+                self._send(401, {"error": "unauthorized"})
+                return
+            TOKENS.clear()
             self._send(200, {"ok": True})
             return
         self._send(404, {"error": "not_found"})
