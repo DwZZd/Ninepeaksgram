@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = 8791
-TTL_SECONDS = 40
+TTL_SECONDS = 90
 CONFIG_PATH = "/opt/ninegram-link/config.json"
 
 

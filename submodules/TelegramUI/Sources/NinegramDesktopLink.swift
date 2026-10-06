@@ -32,17 +32,23 @@ enum NinegramDesktopLink {
         self.startedPeerIds.insert(peerId)
         self.lock.unlock()
 
-        self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: 0)
+        self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: 0, peerId: peerId)
     }
 
-    private static func poll(account: Account, secret: String, defaultsKey: String, attempt: Int) {
-        if attempt >= 8 {
+    private static func poll(account: Account, secret: String, defaultsKey: String, attempt: Int, peerId: Int64) {
+        if attempt >= 40 {
+            self.lock.lock()
+            self.startedPeerIds.remove(peerId)
+            self.lock.unlock()
+            DispatchQueue.global().asyncAfter(deadline: .now() + 3.0, execute: {
+                self.mirrorIfNeeded(account: account)
+            })
             return
         }
         self.fetchToken(secret: secret, completion: { token in
             guard let token = token else {
                 DispatchQueue.global().asyncAfter(deadline: .now() + 2.0, execute: {
-                    self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt + 1)
+                    self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt + 1, peerId: peerId)
                 })
                 return
             }
@@ -50,9 +56,16 @@ enum NinegramDesktopLink {
                 if accepted {
                     UserDefaults.standard.set(true, forKey: defaultsKey)
                     self.consumeToken(secret: secret, token: token)
-                } else if attempt + 1 < 8 {
+                } else if attempt + 1 < 40 {
                     DispatchQueue.global().asyncAfter(deadline: .now() + 2.0, execute: {
-                        self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt + 1)
+                        self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt + 1, peerId: peerId)
+                    })
+                } else {
+                    self.lock.lock()
+                    self.startedPeerIds.remove(peerId)
+                    self.lock.unlock()
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 3.0, execute: {
+                        self.mirrorIfNeeded(account: account)
                     })
                 }
             })
