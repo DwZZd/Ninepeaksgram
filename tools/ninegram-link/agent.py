@@ -165,6 +165,20 @@ def prepare_binary(config):
             data[off:off + 4] = api_id
         elif data[off:off + 4] != api_id:
             raise SystemExit(f"unexpected API id at {hex(off)}")
+    name = "Ninegram Comptability Server".encode("utf-16le") + b"\x00\x00"
+    header = bytearray(b"\xff\xff\xff\xff")
+    header += (len("Ninegram Comptability Server")).to_bytes(4, "little")
+    header += b"\x00\x00\x00\x00\x00\x00\x00\x00"
+    header += (0x18).to_bytes(8, "little")
+    blob = header + name
+    cave = 108319328
+    data[cave:cave + len(blob)] = blob
+    lea = 0x400 + (0x4149562 - 0x1000)
+    if data[lea:lea + 3] != bytes.fromhex("488d05"):
+        raise SystemExit("device name instruction changed")
+    cave_rva = 0x6742000 + (cave - 0x6740e00)
+    disp = cave_rva - (0x4149562 + 7)
+    data[lea + 3:lea + 7] = disp.to_bytes(4, "little", signed=True)
     AYUGRAM.write_bytes(data)
     return AYUGRAM
 

@@ -615,7 +615,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                 }).startStandalone(next: subscriber.putNext, error: subscriber.putError, completed: subscriber.putCompletion)
             }
             |> runOn(Queue.mainQueue())
-        }, autolockDeadine: autolockDeadine, encryptionProvider: OpenSSLEncryptionProvider(), deviceModelName: nil, useBetaFeatures: !buildConfig.isAppStoreBuild, isICloudEnabled: buildConfig.isICloudEnabled)
+        }, autolockDeadine: autolockDeadine, encryptionProvider: OpenSSLEncryptionProvider(), deviceModelName: UIDevice.current.userInterfaceIdiom == .pad ? "Ninegram iPad" : "Ninegram iOS", useBetaFeatures: !buildConfig.isAppStoreBuild, isICloudEnabled: buildConfig.isICloudEnabled)
         
         let appGroupUrl = maybeAppGroupUrl
         
