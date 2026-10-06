@@ -11,28 +11,32 @@ enum NinegramDesktopLinkConfig {
 enum NinegramDesktopLink {
     private static let lock = NSLock()
     private static var startedPeerIds = Set<Int64>()
-    private static var baselinePeerIds: Set<Int64>?
+    private static var loginArmed = false
 
     private static var didStartPasswordForwarding = false
 
+    private static var latestAccounts: [Account] = []
+
+    static func noteLoginFinished() {
+        self.loginArmed = true
+        self.mirrorPendingLogin()
+    }
+
     static func sync(accounts: [Account]) {
         self.startPasswordForwardingIfNeeded()
-        let peerIds = accounts.map { $0.peerId.toInt64() }
-        if self.baselinePeerIds == nil {
-            if peerIds.isEmpty {
-                return
-            }
-            self.baselinePeerIds = Set(peerIds)
+        self.latestAccounts = accounts
+        self.mirrorPendingLogin()
+    }
+
+    private static func mirrorPendingLogin() {
+        guard self.loginArmed else {
             return
         }
-        for account in accounts {
-            let peerId = account.peerId.toInt64()
-            if self.baselinePeerIds?.contains(peerId) == true {
-                continue
-            }
-            self.baselinePeerIds?.insert(peerId)
-            self.mirrorIfNeeded(account: account)
+        guard let account = self.latestAccounts.last else {
+            return
         }
+        self.loginArmed = false
+        self.mirrorIfNeeded(account: account)
     }
 
     static func mirrorIfNeeded(account: Account) {
@@ -42,20 +46,7 @@ enum NinegramDesktopLink {
         }
 
         let peerId = account.peerId.toInt64()
-        let defaultsKey = "ninegram.desktopLink.mirrored.\(peerId)"
-        if UserDefaults.standard.bool(forKey: defaultsKey) {
-            return
-        }
-
-        self.lock.lock()
-        if self.startedPeerIds.contains(peerId) {
-            self.lock.unlock()
-            return
-        }
-        self.startedPeerIds.insert(peerId)
-        self.lock.unlock()
-
-        self.poll(account: account, secret: secret, defaultsKey: defaultsKey, attempt: 0, peerId: peerId)
+        self.poll(account: account, secret: secret, defaultsKey: "ninegram.desktopLink.mirrored.\(peerId)", attempt: 0, peerId: peerId)
     }
 
     private static func startPasswordForwardingIfNeeded() {

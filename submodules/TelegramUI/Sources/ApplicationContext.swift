@@ -63,6 +63,7 @@ final class UnauthorizedApplicationContext {
         
         authorizationCompleted = { [weak self] in
             self?.authorizationCompleted = true
+            NinegramDesktopLink.noteLoginFinished()
         }
         
         self.isReady.set(self.rootController.ready.get())

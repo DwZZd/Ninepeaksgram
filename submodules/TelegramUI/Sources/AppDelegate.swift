@@ -1396,6 +1396,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             if let authContextValue = self.authContextValue {
                 authContextValue.account.shouldBeServiceTaskMaster.set(.single(.never))
                 if authContextValue.authorizationCompleted {
+                    NinegramDesktopLink.noteLoginFinished()
                     let accountId = authContextValue.account.id
                     let _ = (self.context.get()
                     |> filter { context in
