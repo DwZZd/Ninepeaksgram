@@ -122,25 +122,32 @@ def locate_bazel(base_path, cache_host_or_path, cache_dir):
                 print(f"Bazel at {bazel_path} does not match SHA256 {versions.bazel_version_sha256}, removing")
                 os.remove(bazel_path)
 
-        if resolved_cache_host is not None and versions.bazel_version_sha256 is not None:
-            http_cache_host = transform_cache_host_into_http(resolved_cache_host)
-            print(f"Uploading bazel@{versions.bazel_version_sha256} to bazel-remote")
-            call_executable([
-                'curl',
-                '-X',
-                'PUT',
-                '-T',
-                bazel_path,
-                '{cache_host}/cache/cas/{hash}'.format(
-                    cache_host=http_cache_host,
-                    hash=versions.bazel_version_sha256
-                )
-            ], check_result=False)
-        elif resolved_cache_path is not None:
-            (cache_cas_id, cache_cas_name_value) = cache_cas_name(versions.bazel_version_sha256)
-            cached_path = '{}/cas/{}/{}'.format(resolved_cache_path, cache_cas_id, cache_cas_name_value)
-            os.makedirs(os.path.dirname(cached_path), exist_ok=True)
-            shutil.copyfile(bazel_path, cached_path)
+        if os.path.isfile(bazel_path):
+            if resolved_cache_host is not None and versions.bazel_version_sha256 is not None:
+                http_cache_host = transform_cache_host_into_http(resolved_cache_host)
+                print(f"Uploading bazel@{versions.bazel_version_sha256} to bazel-remote")
+                call_executable([
+                    'curl',
+                    '-X',
+                    'PUT',
+                    '-T',
+                    bazel_path,
+                    '{cache_host}/cache/cas/{hash}'.format(
+                        cache_host=http_cache_host,
+                        hash=versions.bazel_version_sha256
+                    )
+                ], check_result=False)
+            elif resolved_cache_path is not None:
+                (cache_cas_id, cache_cas_name_value) = cache_cas_name(versions.bazel_version_sha256)
+                cached_path = '{}/cas/{}/{}'.format(resolved_cache_path, cache_cas_id, cache_cas_name_value)
+                os.makedirs(os.path.dirname(cached_path), exist_ok=True)
+                shutil.copyfile(bazel_path, cached_path)
+
+    if not os.path.isfile(bazel_path):
+        raise Exception(
+            f"Failed to download Bazel {versions.bazel_version} ({bazel_name}) "
+            f"with expected SHA256 {versions.bazel_version_sha256}"
+        )
 
     if not os.access(bazel_path, os.X_OK):
         st = os.stat(bazel_path)
