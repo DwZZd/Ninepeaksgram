@@ -1062,7 +1062,9 @@ extension ChatControllerImpl {
                     }
                     
                     var adMessage = adMessage
-                    if let peer = peerView.peers[peerView.peerId] as? TelegramUser, peer.botInfo != nil {
+                    if MiscSettingsManager.shared.shouldBlockAds {
+                        adMessage = nil
+                    } else if let peer = peerView.peers[peerView.peerId] as? TelegramUser, peer.botInfo != nil {
                     } else {
                         adMessage = nil
                     }

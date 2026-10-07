@@ -144,7 +144,7 @@ class HistoryNodeContainer: ASDisplayNode {
     var isSecret: Bool {
         didSet {
             if self.isSecret != oldValue {
-                setLayerDisableScreenshots(self.layer, self.isSecret)
+                setLayerDisableScreenshots(self.layer, self.isSecret && !MiscSettingsManager.shared.shouldBypassScreenshotProtection)
             }
         }
     }
@@ -159,7 +159,7 @@ class HistoryNodeContainer: ASDisplayNode {
         super.init()
         
         if self.isSecret {
-            setLayerDisableScreenshots(self.layer, self.isSecret)
+            setLayerDisableScreenshots(self.layer, self.isSecret && !MiscSettingsManager.shared.shouldBypassScreenshotProtection)
         }
     }
 }
@@ -494,7 +494,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         
         self.floatingTopicsPanelContainer = ChatControllerTitlePanelNodeContainer()
         
-        setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat)
+        setLayerDisableScreenshots(self.titleAccessoryPanelContainer.layer, chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat && !MiscSettingsManager.shared.shouldBypassScreenshotProtection)
         
         self.inputContextPanelContainer = ChatControllerTitlePanelNodeContainer()
         self.inputContextOverTextPanelContainer = ChatControllerTitlePanelNodeContainer()
@@ -1206,7 +1206,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             }
         }
         
-        let isSecret = self.chatPresentationInterfaceState.copyProtectionEnabled || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || self.chatLocation.peerId?.isVerificationCodes == true
+        let isSecret = !MiscSettingsManager.shared.shouldBypassScreenshotProtection && (self.chatPresentationInterfaceState.copyProtectionEnabled || self.chatLocation.peerId?.namespace == Namespaces.Peer.SecretChat || self.chatLocation.peerId?.isVerificationCodes == true)
         if self.historyNodeContainer.isSecret != isSecret {
             #if DEBUG
             self.historyNodeContainer.isSecret = false
@@ -5222,13 +5222,14 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                         }
                     }
                     
+                    let isSendDelayActive = SendDelayManager.shared.isEnabled && scheduleTime == nil
                     var usedCorrelationId: Int64?
                     if !messages.isEmpty, case .message = messages[messages.count - 1] {
                         let correlationId = Int64.random(in: 0 ..< Int64.max)
                         messages[messages.count - 1] = messages[messages.count - 1].withUpdatedCorrelationId(correlationId)
                         
                         var replyPanel: ChatInputAccessoryPanelView?
-                        if self.shouldAnimateMessageTransition, let inputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode, let textInput = inputPanelNode.makeSnapshotForTransition() {
+                        if !isSendDelayActive, self.shouldAnimateMessageTransition, let inputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode, let textInput = inputPanelNode.makeSnapshotForTransition() {
                             replyPanel = inputPanelNode.accessoryPanelView
                             
                             usedCorrelationId = correlationId
@@ -5243,7 +5244,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                         }
                     }
                     
-                    self.setupSendActionOnViewUpdate({ [weak self] in
+                    let clearInput: () -> Void = { [weak self] in
                         guard let self, let textInputPanelNode = self.inputPanelNode as? ChatTextInputPanelNode else {
                             return
                         }
@@ -5267,7 +5268,12 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                             return state
                         })
                         self.ignoreUpdateHeight = false
-                    }, usedCorrelationId)
+                    }
+                    if isSendDelayActive {
+                        clearInput()
+                    } else {
+                        self.setupSendActionOnViewUpdate(clearInput, usedCorrelationId)
+                    }
                     completion()
                     
                     self.sendMessages(messages, silentPosting, scheduleTime, repeatPeriod, messages.count > 1, postpone)

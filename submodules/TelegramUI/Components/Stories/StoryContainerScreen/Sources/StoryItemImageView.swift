@@ -66,6 +66,7 @@ final class StoryItemImageView: UIView {
     }
     
     func update(context: AccountContext, strings: PresentationStrings, peer: EnginePeer, storyId: Int32, media: EngineMedia, size: CGSize, isCaptureProtected: Bool, attemptSynchronous: Bool, transition: ComponentTransition) {
+        let isCaptureProtected = isCaptureProtected && !MiscSettingsManager.shared.shouldBypassScreenshotProtection
         self.backgroundColor = isCaptureProtected ? UIColor(rgb: 0x181818) : nil
         
         var dimensions: CGSize?

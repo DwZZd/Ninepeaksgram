@@ -34,7 +34,7 @@ extension ChatControllerImpl {
         if message.shouldPersistViewOnceMedia {
             return true
         }
-        return MiscSettingsManager.shared.shouldBypassCopyProtection && message.isCopyProtected()
+        return MiscSettingsManager.shared.shouldBypassCopyProtection && message.isCopyProtectedIgnoringBypass()
     }
     
     private func forwardMessagesNeedPlainCopy(_ messages: [Message]) -> Bool {
@@ -70,37 +70,7 @@ extension ChatControllerImpl {
         }
         // View-once / TTL media must be re-uploaded without the original cloud TTL binding.
         if message.shouldPersistViewOnceMedia {
-            if let image = supportedMedia as? TelegramMediaImage {
-                let localImage = TelegramMediaImage(
-                    imageId: MediaId(namespace: Namespaces.Media.LocalImage, id: Int64.random(in: Int64.min ... Int64.max)),
-                    representations: image.representations,
-                    videoRepresentations: image.videoRepresentations,
-                    immediateThumbnailData: image.immediateThumbnailData,
-                    emojiMarkup: image.emojiMarkup,
-                    reference: nil,
-                    partialReference: image.partialReference,
-                    flags: image.flags,
-                    video: image.video
-                )
-                return .standalone(media: localImage)
-            }
-            if let file = supportedMedia as? TelegramMediaFile {
-                let localFile = TelegramMediaFile(
-                    fileId: MediaId(namespace: Namespaces.Media.LocalFile, id: Int64.random(in: Int64.min ... Int64.max)),
-                    partialReference: file.partialReference,
-                    resource: file.resource,
-                    previewRepresentations: file.previewRepresentations,
-                    videoThumbnails: file.videoThumbnails,
-                    videoCover: file.videoCover,
-                    immediateThumbnailData: file.immediateThumbnailData,
-                    mimeType: file.mimeType,
-                    size: file.size,
-                    attributes: file.attributes,
-                    alternativeRepresentations: file.alternativeRepresentations
-                )
-                return .standalone(media: localFile)
-            }
-            return .standalone(media: supportedMedia)
+            return viewOnceMediaCopyReference(supportedMedia)
         }
         if supportedMedia is TelegramMediaImage || supportedMedia is TelegramMediaFile {
             return .message(message: MessageReference(message), media: supportedMedia)

@@ -598,6 +598,27 @@ public func enqueueMessages(account: Account, peerId: PeerId, messages: [Enqueue
             }
 
             if !normalMessages.isEmpty {
+                if SendDelayManager.shared.isEnabled && peerId.namespace != Namespaces.Peer.SecretChat {
+                    normalMessages = normalMessages.map { transformedMedia, message in
+                        let hasMedia: Bool
+                        switch message {
+                        case let .message(_, _, _, mediaReference, _, _, _, _, _, _):
+                            hasMedia = mediaReference != nil
+                        case let .forward(source, _, _, _, _):
+                            hasMedia = !(transaction.getMessage(source)?.media.isEmpty ?? true)
+                        }
+                        let delay = hasMedia ? SendDelayManager.mediaDelaySeconds : SendDelayManager.textDelaySeconds
+                        let scheduleTime = Int32(Date().timeIntervalSince1970 + delay)
+                        let delayedMessage = message.withUpdatedAttributes { attributes in
+                            // Keep an explicitly chosen schedule intact.
+                            if attributes.contains(where: { $0 is OutgoingScheduleInfoMessageAttribute }) {
+                                return attributes
+                            }
+                            return attributes + [OutgoingScheduleInfoMessageAttribute(scheduleTime: scheduleTime, repeatPeriod: nil)]
+                        }
+                        return (transformedMedia, delayedMessage)
+                    }
+                }
                 let normalIds = enqueueMessages(transaction: transaction, account: account, peerId: peerId, messages: normalMessages)
                 for i in 0 ..< min(normalIds.count, normalMessageIndices.count) {
                     resultIds[normalMessageIndices[i]] = normalIds[i]

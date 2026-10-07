@@ -391,6 +391,13 @@ public extension Message {
     }
     
     func isCopyProtected() -> Bool {
+        if MiscSettingsManager.shared.shouldBypassCopyProtection {
+            return false
+        }
+        return self.isCopyProtectedIgnoringBypass()
+    }
+
+    func isCopyProtectedIgnoringBypass() -> Bool {
         if self.flags.contains(.CopyProtected) {
             return true
         } else if let group = self.peers[self.id.peerId] as? TelegramGroup, group.flags.contains(.copyProtectionEnabled) {

@@ -9152,6 +9152,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                     return
                 }
             
+                let isSendDelayActive = SendDelayManager.shared.isEnabled && scheduleTime == nil
                 var completionImpl: (() -> Void)? = completion
 
                 var usedCorrelationId: Int64?
@@ -9163,7 +9164,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                 
                 var skipAddingTransitions = false
                 
-                if shouldDivert {
+                if shouldDivert || isSendDelayActive {
                     skipAddingTransitions = true
                 }
                 if !animateTransition {
