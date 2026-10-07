@@ -437,6 +437,7 @@ extension ChatControllerImpl {
     }
     
     private func finishSendingVoiceMessage(randomId: Int64, processedData: Data, duration: Double, waveformBuffer: Data?, viewOnce: Bool) {
+        let replyToMessageId = self.presentationInterfaceState.interfaceState.replyMessageSubject?.subjectModel
         let resource = LocalFileMediaResource(fileId: randomId)
         self.context.engine.resources.storeResourceData(id: EngineMediaResource.Id(resource.id), data: processedData)
         let correlationId = Int64.random(in: 0 ..< Int64.max)
@@ -470,7 +471,7 @@ extension ChatControllerImpl {
         if viewOnce {
             attributes.append(AutoremoveTimeoutMessageAttribute(timeout: viewOnceTimeout, countdownBeginTime: nil))
         }
-        self.sendMessages([.message(text: "", attributes: attributes, inlineStickers: [:], mediaReference: .standalone(media: TelegramMediaFile(fileId: EngineMedia.Id(namespace: Namespaces.Media.LocalFile, id: randomId), partialReference: nil, resource: resource, previewRepresentations: [], videoThumbnails: [], immediateThumbnailData: nil, mimeType: "audio/ogg", size: Int64(processedData.count), attributes: [.Audio(isVoice: true, duration: Int(duration), title: nil, performer: nil, waveform: waveformBuffer)], alternativeRepresentations: [])), threadId: self.chatLocation.threadId, replyToMessageId: self.presentationInterfaceState.interfaceState.replyMessageSubject?.subjectModel, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: [])])
+        self.sendMessages([.message(text: "", attributes: attributes, inlineStickers: [:], mediaReference: .standalone(media: TelegramMediaFile(fileId: EngineMedia.Id(namespace: Namespaces.Media.LocalFile, id: randomId), partialReference: nil, resource: resource, previewRepresentations: [], videoThumbnails: [], immediateThumbnailData: nil, mimeType: "audio/ogg", size: Int64(processedData.count), attributes: [.Audio(isVoice: true, duration: Int(duration), title: nil, performer: nil, waveform: waveformBuffer)], alternativeRepresentations: [])), threadId: self.chatLocation.threadId, replyToMessageId: replyToMessageId, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: [])])
     }
 
     func stopMediaRecorder(pause: Bool = false) {

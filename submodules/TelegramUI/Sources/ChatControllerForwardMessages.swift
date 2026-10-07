@@ -672,7 +672,7 @@ extension ChatControllerImpl {
                     }
 
                     let _ = (ChatInterfaceState.update(engine: strongSelf.context.engine, peerId: peerId, threadId: threadId, { currentState in
-                        return currentState.withUpdatedForwardMessageIds(messages.map { $0.id }).withUpdatedForwardOptionsState(ChatInterfaceForwardOptionsState(hideNames: !hasNotOwnMessages, hideCaptions: false, unhideNamesOnCaptionChange: false))
+                        return currentState.withUpdatedForwardMessageIds(messages.map { $0.id }).withUpdatedForwardOptionsState(ChatInterfaceForwardOptionsState(hideNames: !hasNotOwnMessages || (options?.hideNames ?? false), hideCaptions: options?.hideCaptions ?? false, unhideNamesOnCaptionChange: false))
                     })
                     |> deliverOnMainQueue).startStandalone(completed: {
                         if let strongSelf = self {
