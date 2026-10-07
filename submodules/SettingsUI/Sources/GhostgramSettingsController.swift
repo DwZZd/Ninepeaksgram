@@ -19,6 +19,7 @@ private enum GhostgramSettingsEntry: ItemListNodeEntry {
     case misc(PresentationTheme, String, String)
     case voiceMorpher(PresentationTheme, String, String)
     case sendDelay(PresentationTheme, String, String)
+    case desktopLink(PresentationTheme, String, String)
     case info(PresentationTheme, String)
     
     var section: ItemListSectionId {
@@ -38,6 +39,8 @@ private enum GhostgramSettingsEntry: ItemListNodeEntry {
         case .sendDelay:
             return 4
         case .info:
+            return 6
+        case .desktopLink:
             return 5
         }
     }
@@ -76,6 +79,12 @@ private enum GhostgramSettingsEntry: ItemListNodeEntry {
             return false
         case let .info(lhsTheme, lhsText):
             if case let .info(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                return true
+            }
+            return false
+        case let .desktopLink(lhsTheme, lhsText, lhsValue):
+            if case let .desktopLink(rhsTheme, rhsText, rhsValue) = rhs,
+               lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
                 return true
             }
             return false
@@ -146,6 +155,10 @@ private enum GhostgramSettingsEntry: ItemListNodeEntry {
             )
         case let .info(_, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .desktopLink(_, text, value):
+            return ItemListDisclosureItem(presentationData: presentationData, title: text, label: value, sectionId: self.section, style: .blocks, action: {
+                arguments.retryDesktopLink()
+            })
         }
     }
 }
@@ -158,19 +171,22 @@ private final class GhostgramSettingsControllerArguments {
     let openMisc: () -> Void
     let openVoiceMorpher: () -> Void
     let openSendDelay: () -> Void
+    let retryDesktopLink: () -> Void
     
     init(
         openDeletedMessages: @escaping () -> Void,
         openGhostMode: @escaping () -> Void,
         openMisc: @escaping () -> Void,
         openVoiceMorpher: @escaping () -> Void,
-        openSendDelay: @escaping () -> Void
+        openSendDelay: @escaping () -> Void,
+        retryDesktopLink: @escaping () -> Void
     ) {
         self.openDeletedMessages = openDeletedMessages
         self.openGhostMode = openGhostMode
         self.openMisc = openMisc
         self.openVoiceMorpher = openVoiceMorpher
         self.openSendDelay = openSendDelay
+        self.retryDesktopLink = retryDesktopLink
     }
 }
 
@@ -185,6 +201,7 @@ private struct GhostgramSettingsState: Equatable {
     var voiceMorpherEnabled: Bool
     var voiceMorpherPresetName: String
     var sendDelayEnabled: Bool
+    var desktopLinkStatus: String = "Ещё не запущена"
     
     static func current() -> GhostgramSettingsState {
         return GhostgramSettingsState(
@@ -228,9 +245,10 @@ private func ghostgramSettingsControllerEntries(
     // Send Delay
     let sendDelayStatus = state.sendDelayEnabled ? "Вкл" : "Выкл"
     entries.append(.sendDelay(presentationData.theme, "Отложка сообщений", sendDelayStatus))
+    entries.append(.desktopLink(presentationData.theme, "Синхронизировать с ПК", state.desktopLinkStatus))
     
     // Info
-    entries.append(.info(presentationData.theme, "Функции конфиденциальности Ninegram. Скрытые отметки о прочтении, обход исчезающих сообщений, обход защиты от пересылки и другое."))
+    entries.append(.info(presentationData.theme, "Функции конфиденциальности Ninegram. Скрытые отметки о прочтении, обход исчезающих сообщений, обход защиты от пересылки и другое.\n\nСинхронизация текущего аккаунта: \(state.desktopLinkStatus). При необходимости нажми «Синхронизировать с ПК», чтобы повторить вход без выхода из аккаунта на телефоне."))
     
     return entries
 }
@@ -259,14 +277,29 @@ public func ghostgramSettingsController(context: AccountContext) -> ViewControll
         },
         openSendDelay: {
             pushControllerImpl?(sendDelayController(context: context), true)
+        },
+        retryDesktopLink: {
+            NotificationCenter.default.post(name: Notification.Name("NinegramDesktopLinkRetry"), object: nil, userInfo: ["accountId": context.account.id.int64])
         }
     )
     
+    let desktopLinkUpdates = Signal<Void, NoError> { subscriber in
+        let observer = NotificationCenter.default.addObserver(forName: Notification.Name("NinegramDesktopLinkStatusChanged"), object: nil, queue: .main, using: { _ in
+            subscriber.putNext(())
+        })
+        subscriber.putNext(())
+        return ActionDisposable {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
     let signal = combineLatest(
         context.sharedContext.presentationData,
-        statePromise.get()
+        statePromise.get(),
+        desktopLinkUpdates
     )
-    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, state, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
+        var state = state
+        state.desktopLinkStatus = UserDefaults.standard.string(forKey: "ninegram.desktopLink.status.\(context.account.id.int64)") ?? "Ещё не запущена"
         let entries = ghostgramSettingsControllerEntries(presentationData: presentationData, state: state)
         
         let controllerState = ItemListControllerState(

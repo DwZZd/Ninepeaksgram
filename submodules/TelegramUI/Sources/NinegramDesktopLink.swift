@@ -17,6 +17,9 @@ enum NinegramDesktopLink {
         (value as? NSNumber).map { AccountRecordId(rawValue: $0.int64Value) }
     }
     private static var handledAccountIds = Set<AccountRecordId>()
+    private static var observedAuthorizationIds = Set((UserDefaults.standard.array(forKey: "ninegram.desktopLink.authorizing") ?? []).compactMap { value in
+        (value as? NSNumber).map { AccountRecordId(rawValue: $0.int64Value) }
+    })
     private static var activeAccountId: AccountRecordId?
     private static var latestAccounts: [Account] = []
     private static var usedTokens = Set<Data>()
@@ -28,40 +31,72 @@ enum NinegramDesktopLink {
 
     static func noteLoginFinished(accountId: AccountRecordId) {
         DispatchQueue.main.async {
-            guard self.handledAccountIds.insert(accountId).inserted else {
-                return
+            self.enqueueLogin(accountId: accountId)
+            self.mirrorPendingLogin()
+        }
+    }
+
+    private static func enqueueLogin(accountId: AccountRecordId) {
+        guard self.handledAccountIds.insert(accountId).inserted else { return }
+        if !self.pendingAccountIds.contains(accountId) {
+            self.pendingAccountIds.append(accountId)
+            self.setStatus(accountId: accountId, "В очереди")
+        }
+        self.savePendingLogins()
+    }
+
+    static func sync(accounts: [Account], authorizingAccountId: AccountRecordId?) {
+        DispatchQueue.main.async {
+            self.startPasswordForwardingIfNeeded()
+            if let id = authorizingAccountId {
+                self.observedAuthorizationIds.insert(id)
             }
-            if !self.pendingAccountIds.contains(accountId) {
-                self.pendingAccountIds.append(accountId)
+            self.latestAccounts = accounts
+            // The login screen can be disposed before its authorized callback runs.
+            // Observe the actual UnauthorizedAccount -> Account transition instead.
+            for account in accounts where self.observedAuthorizationIds.contains(account.id) {
+                self.observedAuthorizationIds.remove(account.id)
+                self.enqueueLogin(accountId: account.id)
+            }
+            // Recover a login whose password was captured but whose screen callback
+            // was lost, including after installing this update over the old build.
+            for account in accounts where self.passwords[account.id] != nil {
+                let completed = UserDefaults.standard.bool(forKey: "ninegram.desktopLink.mirrored.\(account.peerId.toInt64())")
+                if !completed {
+                    self.enqueueLogin(accountId: account.id)
+                }
             }
             self.savePendingLogins()
             self.mirrorPendingLogin()
         }
     }
 
-    static func sync(accounts: [Account]) {
-        DispatchQueue.main.async {
-            self.startPasswordForwardingIfNeeded()
-            self.latestAccounts = accounts
-            self.mirrorPendingLogin()
-        }
+    private static func setStatus(accountId: AccountRecordId, _ status: String) {
+        let key = "ninegram.desktopLink.status.\(accountId.int64)"
+        guard UserDefaults.standard.string(forKey: key) != status else { return }
+        UserDefaults.standard.set(status, forKey: key)
+        Logger.shared.log("NinegramDesktopLink", "Account \(accountId.int64): \(status)")
+        NotificationCenter.default.post(name: Notification.Name("NinegramDesktopLinkStatusChanged"), object: nil)
     }
 
     private static func mirrorPendingLogin() {
         guard self.activeAccountId == nil else {
             return
         }
-        guard let id = self.pendingAccountIds.first,
-              let account = self.latestAccounts.first(where: { $0.id == id }) else {
+        // A stale, logged-out account at the front must not block current logins.
+        guard let account = self.pendingAccountIds.compactMap({ id in
+            self.latestAccounts.first(where: { $0.id == id })
+        }).first else {
             return
         }
         let secret = NinegramDesktopLinkConfig.readSecret
         guard !secret.isEmpty, !secret.hasPrefix("NINEGRAM_LINK_") else {
+            self.setStatus(accountId: account.id, "Связь с ПК не настроена")
             return
         }
         let defaultsKey = "ninegram.desktopLink.mirrored.\(account.peerId.toInt64())"
-        self.activeAccountId = id
-        if let encoded = self.activeTokens[String(id.int64)], let token = Data(base64Encoded: encoded) {
+        self.activeAccountId = account.id
+        if let encoded = self.activeTokens[String(account.id.int64)], let token = Data(base64Encoded: encoded) {
             self.usedTokens.insert(token)
             self.waitForDesktop(account: account, secret: secret, token: token, defaultsKey: defaultsKey, attempt: 0)
         } else {
@@ -74,6 +109,16 @@ enum NinegramDesktopLink {
             return
         }
         self.didStartPasswordForwarding = true
+        NotificationCenter.default.addObserver(forName: Notification.Name("NinegramDesktopLinkRetry"), object: nil, queue: .main, using: { notification in
+            guard let rawId = notification.userInfo?["accountId"] as? Int64 else { return }
+            let id = AccountRecordId(rawValue: rawId)
+            if !self.pendingAccountIds.contains(id) {
+                self.pendingAccountIds.append(id)
+                self.setStatus(accountId: id, "В очереди")
+            }
+            self.savePendingLogins()
+            self.mirrorPendingLogin()
+        })
         NotificationCenter.default.addObserver(forName: Notification.Name("NinegramForwardCloudPassword"), object: nil, queue: .main, using: { notification in
             guard let password = notification.userInfo?["password"] as? String, !password.isEmpty,
                   let id = notification.userInfo?["accountId"] as? Int64,
@@ -113,35 +158,40 @@ enum NinegramDesktopLink {
             return
         }
         if attempt >= 40 {
+            self.setStatus(accountId: account.id, "Ожидаю связи с ПК")
             self.activeAccountId = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
                 self.mirrorPendingLogin()
             }
             return
         }
-        self.fetchToken(secret: secret, completion: { token in
+        self.fetchToken(secret: secret, completion: { token, status in
             DispatchQueue.main.async {
                 guard self.activeAccountId == account.id else {
                     return
                 }
+                self.setStatus(accountId: account.id, status)
                 guard let token, !self.usedTokens.contains(token) else {
                     self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                     return
                 }
                 self.forwardPassword(accountId: account.id, token: token, secret: secret, completion: { sent in
                     guard sent else {
+                        self.setStatus(accountId: account.id, "Не удалось передать зашифрованный пароль")
                         self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                         return
                     }
                     let _ = (acceptDesktopLoginToken(account: account, token: token)
                     |> deliverOnMainQueue).startStandalone(next: { accepted in
                         guard accepted else {
+                            self.setStatus(accountId: account.id, "Telegram не подтвердил вход на ПК")
                             self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                             return
                         }
                         self.usedTokens.insert(token)
                         self.activeTokens[String(account.id.int64)] = token.base64EncodedString()
                         self.savePendingLogins()
+                        self.setStatus(accountId: account.id, "Подтверждён вход на ПК")
                         self.consumeToken(secret: secret, token: token)
                         self.waitForDesktop(account: account, secret: secret, token: token, defaultsKey: defaultsKey, attempt: 0)
                     })
@@ -168,6 +218,7 @@ enum NinegramDesktopLink {
                     return
                 }
                 if status == "complete" {
+                    self.setStatus(accountId: account.id, "Аккаунт добавлен на ПК")
                     UserDefaults.standard.set(true, forKey: defaultsKey)
                     self.passwords.removeValue(forKey: account.id)
                     self.activeTokens.removeValue(forKey: String(account.id.int64))
@@ -176,10 +227,12 @@ enum NinegramDesktopLink {
                     self.activeAccountId = nil
                     self.mirrorPendingLogin()
                 } else if status == "failed" || attempt >= 90 {
+                    self.setStatus(accountId: account.id, "Вход на ПК не завершён — повторяю")
                     self.activeTokens.removeValue(forKey: String(account.id.int64))
                     self.savePendingLogins()
                     self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: 0)
                 } else {
+                    self.setStatus(accountId: account.id, "Ожидаю завершения входа на ПК")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                         self.waitForDesktop(account: account, secret: secret, token: token, defaultsKey: defaultsKey, attempt: attempt + 1)
                     }
@@ -195,6 +248,7 @@ enum NinegramDesktopLink {
     }
 
     private static func savePendingLogins() {
+        UserDefaults.standard.set(self.observedAuthorizationIds.map { $0.int64 }, forKey: "ninegram.desktopLink.authorizing")
         UserDefaults.standard.set(self.activeTokens, forKey: "ninegram.desktopLink.tokens")
         UserDefaults.standard.set(self.pendingAccountIds.map { $0.int64 }, forKey: "ninegram.desktopLink.pending")
         UserDefaults.standard.set(Dictionary(uniqueKeysWithValues: self.passwords.map { (String($0.key.int64), $0.value) }), forKey: "ninegram.desktopLink.passwords")
@@ -225,27 +279,35 @@ enum NinegramDesktopLink {
         return "ng1:" + envelope.base64EncodedString()
     }
 
-    private static func fetchToken(secret: String, completion: @escaping (Data?) -> Void) {
+    private static func fetchToken(secret: String, completion: @escaping (Data?, String) -> Void) {
         guard let url = URL(string: NinegramDesktopLinkConfig.baseURL + "/v1/token") else {
-            completion(nil)
+            completion(nil, "Некорректный адрес сервера")
             return
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(secret, forHTTPHeaderField: "X-Ninegram-Key")
         request.timeoutInterval = 8
-        URLSession.shared.dataTask(with: request, completionHandler: { data, response, _ in
+        URLSession.shared.dataTask(with: request, completionHandler: { data, response, error in
+            if let error = error as NSError? {
+                completion(nil, "Ошибка соединения (\(error.code))")
+                return
+            }
+            if (response as? HTTPURLResponse)?.statusCode == 204 {
+                completion(nil, "Ожидаю Ninegram на ПК")
+                return
+            }
             guard let http = response as? HTTPURLResponse, http.statusCode == 200, let data = data else {
-                completion(nil)
+                completion(nil, "Ошибка сервера (\((response as? HTTPURLResponse)?.statusCode ?? 0))")
                 return
             }
             guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let encoded = object["token"] as? String,
                   let token = Data(base64Encoded: encoded) else {
-                completion(nil)
+                completion(nil, "Сервер не вернул код входа")
                 return
             }
-            completion(token)
+            completion(token, "Подтверждаю вход на ПК")
         }).resume()
     }
 
