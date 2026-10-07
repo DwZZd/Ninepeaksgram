@@ -134,13 +134,9 @@ extension ChatControllerImpl {
         // SecretMediaPreviewController, so they need their own burn action.
         var actions: [ContextMenuItem] = []
         if isIncoming {
-            actions.append(.action(ContextMenuActionItem(text: "Сжечь", icon: { theme in
-                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.contextMenu.primaryColor)
-            }, action: { [weak self] controller, _ in
-                guard let self else { return }
-                let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: message.id).startStandalone()
-                self.context.sharedContext.mediaManager.setPlaylist(nil, type: .voice, control: .playback(.pause))
-                controller?.dismiss(result: .default, completion: nil)
+            actions.append(.action(ninegramBurnAction(context: self.context, message: message._asMessage(), onBurn: { [weak self] in
+                // Keep the viewer alive so the updated action is visible.
+                self?.context.sharedContext.mediaManager.playlistControl(.playback(.pause), type: .voice)
             })))
         }
 

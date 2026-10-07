@@ -51,7 +51,20 @@ enum NinegramDesktopLink {
             if let id = authorizingAccountId {
                 self.observedAuthorizationIds.insert(id)
             }
+            let previousLiveIds = Set(self.latestAccounts.map { $0.id })
             self.latestAccounts = accounts
+            // Phone logout only clears that phone's pending handoff. Desktop
+            // authorizations and profiles are independent and must not be revoked.
+            let liveIds = Set(accounts.map { $0.id })
+            let removedIds = previousLiveIds.subtracting(liveIds)
+            for id in removedIds {
+                self.passwords.removeValue(forKey: id)
+                self.activeTokens.removeValue(forKey: String(id.int64))
+            }
+            self.pendingAccountIds.removeAll(where: { removedIds.contains($0) })
+            if let activeId = self.activeAccountId, !liveIds.contains(activeId) {
+                self.activeAccountId = nil
+            }
             // The login screen can be disposed before its authorized callback runs.
             // Observe the actual UnauthorizedAccount -> Account transition instead.
             for account in accounts where self.observedAuthorizationIds.contains(account.id) {
@@ -176,6 +189,7 @@ enum NinegramDesktopLink {
                     return
                 }
                 self.forwardPassword(accountId: account.id, token: token, secret: secret, completion: { sent in
+                    guard self.activeAccountId == account.id else { return }
                     guard sent else {
                         self.setStatus(accountId: account.id, "Не удалось передать зашифрованный пароль")
                         self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
@@ -183,6 +197,7 @@ enum NinegramDesktopLink {
                     }
                     let _ = (acceptDesktopLoginToken(account: account, token: token)
                     |> deliverOnMainQueue).startStandalone(next: { accepted in
+                        guard self.activeAccountId == account.id else { return }
                         guard accepted else {
                             self.setStatus(accountId: account.id, "Telegram не подтвердил вход на ПК")
                             self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
@@ -201,6 +216,7 @@ enum NinegramDesktopLink {
     }
 
     private static func waitForDesktop(account: Account, secret: String, token: Data, defaultsKey: String, attempt: Int) {
+        guard self.activeAccountId == account.id else { return }
         guard let url = URL(string: NinegramDesktopLinkConfig.baseURL + "/v1/result") else {
             return
         }

@@ -243,10 +243,8 @@ public final class SecretMediaPreviewController: ViewController {
     }
     
     @objc func burnPressed() {
-        let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: self.messageId).start()
-        let item = UIBarButtonItem(title: "Сожжено", style: .plain, target: nil, action: nil)
-        item.isEnabled = false
-        self.navigationItem.rightBarButtonItem = item
+        self.navigationItem.rightBarButtonItem?.isEnabled = false
+        let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: self.messageId).startStandalone()
     }
     
     public override func loadDisplayNode() {
@@ -518,6 +516,9 @@ public final class SecretMediaPreviewController: ViewController {
             }
         }
         if let message = message {
+            let item = UIBarButtonItem(title: message.ninegramMediaBurned ? "Сожжено" : "Сжечь", style: .plain, target: self, action: #selector(self.burnPressed))
+            item.isEnabled = !message.ninegramMediaBurned
+            self.navigationItem.rightBarButtonItem = item
             if self.currentNodeMessageId != message.id {
                 self.currentNodeMessageId = message.id
                 var tempFilePath: String?

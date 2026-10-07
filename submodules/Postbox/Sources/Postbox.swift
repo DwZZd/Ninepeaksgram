@@ -2170,6 +2170,13 @@ final class PostboxImpl {
     }
     
     fileprivate func addMessages(transaction: Transaction, messages: [StoreMessage], location: AddMessagesLocation) -> [Int64: MessageId] {
+        let messages = messages.map { message -> StoreMessage in
+            if let process = self.seedConfiguration.processMessageUpdate,
+               case let .Id(id) = message.id, let previous = self.getMessage(id) {
+                return process(previous, message)
+            }
+            return message
+        }
         var addedMessagesByPeerId: [PeerId: [StoreMessage]] = [:]
         let addResult = self.messageHistoryTable.addMessages(messages: messages, operationsByPeerId: &self.currentOperationsByPeerId, updatedMedia: &self.currentUpdatedMedia, unsentMessageOperations: &currentUnsentOperations, updatedPeerReadStateOperations: &self.currentUpdatedSynchronizeReadStateOperations, globalTagsOperations: &self.currentGlobalTagsOperations, pendingActionsOperations: &self.currentPendingMessageActionsOperations, updatedMessageActionsSummaries: &self.currentUpdatedMessageActionsSummaries, updatedMessageTagSummaries: &self.currentUpdatedMessageTagSummaries, invalidateMessageTagSummaries: &self.currentInvalidateMessageTagSummaries, localTagsOperations: &self.currentLocalTagsOperations, timestampBasedMessageAttributesOperations: &self.currentTimestampBasedMessageAttributesOperations, processMessages: { messagesByPeerId in
             addedMessagesByPeerId = messagesByPeerId
@@ -3022,6 +3029,7 @@ final class PostboxImpl {
         if let index = self.messageHistoryIndexTable.getIndex(id), let intermediateMessage = self.messageHistoryTable.getMessage(index) {
             let message = self.renderIntermediateMessage(intermediateMessage)
             if case let .update(updatedMessage) = update(message) {
+                let updatedMessage = self.seedConfiguration.processMessageUpdate?(message, updatedMessage) ?? updatedMessage
                 self.messageHistoryTable.updateMessage(id, message: updatedMessage, operationsByPeerId: &self.currentOperationsByPeerId, updatedMedia: &self.currentUpdatedMedia, unsentMessageOperations: &self.currentUnsentOperations, updatedPeerReadStateOperations: &self.currentUpdatedSynchronizeReadStateOperations, globalTagsOperations: &self.currentGlobalTagsOperations, pendingActionsOperations: &self.currentPendingMessageActionsOperations, updatedMessageActionsSummaries: &self.currentUpdatedMessageActionsSummaries, updatedMessageTagSummaries: &self.currentUpdatedMessageTagSummaries, invalidateMessageTagSummaries: &self.currentInvalidateMessageTagSummaries, localTagsOperations: &self.currentLocalTagsOperations, timestampBasedMessageAttributesOperations: &self.currentTimestampBasedMessageAttributesOperations)
                 
                 if let bag = self.installedStoreOrUpdateMessageActionsByPeerId[id.peerId] {

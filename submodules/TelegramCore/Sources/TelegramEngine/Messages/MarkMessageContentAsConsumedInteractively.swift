@@ -5,7 +5,7 @@ import SwiftSignalKit
 
 func _internal_burnEphemeralMediaForSender(postbox: Postbox, messageId: MessageId) -> Signal<Void, NoError> {
     return postbox.transaction { transaction -> Void in
-        guard let message = transaction.getMessage(messageId), message.flags.contains(.Incoming) else {
+        guard let message = transaction.getMessage(messageId), message.flags.contains(.Incoming), !message.ninegramMediaBurned else {
             return
         }
         if message.id.peerId.namespace == Namespaces.Peer.SecretChat {
@@ -24,11 +24,24 @@ func _internal_burnEphemeralMediaForSender(postbox: Postbox, messageId: MessageI
                     if updatedState != state {
                         transaction.setPeerChatState(message.id.peerId, state: updatedState)
                     }
+                } else {
+                    return
                 }
+            } else {
+                return
             }
         } else {
             addSynchronizeConsumeMessageContentsOperation(transaction: transaction, messageIds: [message.id])
         }
+        // Persist explicit burn independently of local playback/consumed state.
+        transaction.updateMessage(messageId, update: { current in
+            var attributes = current.attributes
+            attributes.append(BurnedEphemeralMediaMessageAttribute())
+            let forwardInfo = current.forwardInfo.map { info in
+                StoreMessageForwardInfo(authorId: info.author?.id, sourceId: info.source?.id, sourceMessageId: info.sourceMessageId, date: info.date, authorSignature: info.authorSignature, psaType: info.psaType, flags: info.flags)
+            }
+            return .update(StoreMessage(id: current.id, customStableId: nil, globallyUniqueId: current.globallyUniqueId, groupingKey: current.groupingKey, threadId: current.threadId, timestamp: current.timestamp, flags: StoreMessageFlags(current.flags), tags: current.tags, globalTags: current.globalTags, localTags: current.localTags, forwardInfo: forwardInfo, authorId: current.author?.id, text: current.text, attributes: attributes, media: current.media))
+        })
     }
 }
 

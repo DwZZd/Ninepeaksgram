@@ -1,0 +1,3 @@
+Source: user attachment codex-clipboard-517d090d-6dd0-4320-93f0-603a1ed11333.png.
+Built-in imagegen evaluated with prompt: Preserve exact original cat and placement, composite transparency onto opaque pure black, no redraw or added details.
+Final asset uses original cat without redraw, native opaque RGB conversion on black, and catalog size derivatives.

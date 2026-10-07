@@ -2071,6 +2071,11 @@ func _internal_deleteStories(account: Account, peerId: PeerId, ids: [Int32]) -> 
 }
 
 func _internal_markStoryAsSeen(account: Account, peerId: PeerId, id: Int32, asPinned: Bool) -> Signal<Never, NoError> {
+    // Sample at the time of viewing, not when a queued operation eventually runs.
+    // Pinned/profile stories use incrementStoryViews instead of readStories.
+    if GhostModeManager.shared.shouldHideStoryViews {
+        return .complete()
+    }
     if asPinned {
         return account.postbox.transaction { transaction -> Api.InputPeer? in
             return transaction.getPeer(peerId).flatMap(apiInputPeer)

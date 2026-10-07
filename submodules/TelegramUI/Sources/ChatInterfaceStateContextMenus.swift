@@ -984,11 +984,16 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
                guard let file = media as? TelegramMediaFile else { return false }
                return file.isVoice || file.isInstantVideo
            }) {
-            actions.append(.action(ContextMenuActionItem(text: "Сжечь", icon: { theme in
-                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.contextMenu.primaryColor)
-            }, action: { _, dismiss in
-                let _ = context.engine.messages.burnEphemeralMediaForSender(messageId: message.id).startStandalone()
-                dismiss(.default)
+            actions.append(.action(ninegramBurnAction(context: context, message: message)))
+        }
+
+        if messages.count == 1 && !message.ninegramEditHistory.isEmpty {
+            actions.append(.action(ContextMenuActionItem(text: "История изменений", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Edit"), color: theme.contextMenu.primaryColor)
+            }, action: { controller, _ in
+                controller?.dismiss(completion: {
+                    controllerInteraction.navigationController()?.pushViewController(MessageEditHistoryController(context: context, message: message))
+                })
             })))
         }
 
