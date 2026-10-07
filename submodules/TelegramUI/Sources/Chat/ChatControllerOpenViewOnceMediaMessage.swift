@@ -130,6 +130,20 @@ extension ChatControllerImpl {
         
         let isIncoming = message.effectivelyIncoming(self.context.account.peerId)
         
+        // Persistent voice notes and video messages use this viewer rather than
+        // SecretMediaPreviewController, so they need their own burn action.
+        var actions: [ContextMenuItem] = []
+        if isIncoming {
+            actions.append(.action(ContextMenuActionItem(text: "Сжечь", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.contextMenu.primaryColor)
+            }, action: { [weak self] _, dismiss in
+                guard let self else { return }
+                let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: message.id).startStandalone()
+                self.context.sharedContext.mediaManager.setPlaylist(nil, type: .voice, control: .playback(.pause))
+                dismiss(.default)
+            })))
+        }
+
         var presentImpl: ((ViewController) -> Void)?
         let configuration = ContextController.Configuration(
             sources: [
@@ -147,8 +161,8 @@ extension ChatControllerImpl {
                             presentImpl?(c)
                         }
                     )),
-                    items: .single(ContextController.Items(content: .list([]))),
-                    closeActionTitle: isIncoming ? self.presentationData.strings.Chat_PlayOnceMesasgeCloseAndDelete : self.presentationData.strings.Chat_PlayOnceMesasgeClose,
+                    items: .single(ContextController.Items(content: .list(actions))),
+                    closeActionTitle: isIncoming && !message._asMessage().shouldPersistViewOnceMedia ? self.presentationData.strings.Chat_PlayOnceMesasgeCloseAndDelete : self.presentationData.strings.Chat_PlayOnceMesasgeClose,
                     closeAction: { [weak self] in
                         if let self {
                             self.context.sharedContext.mediaManager.setPlaylist(nil, type: .voice, control: .playback(.pause))

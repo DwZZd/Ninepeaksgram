@@ -978,6 +978,20 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
 
         var actions: [ContextMenuItem] = []
 
+        if messages.count == 1, message.flags.contains(.Incoming),
+           message.minAutoremoveOrClearTimeout == viewOnceTimeout,
+           message.media.contains(where: { media in
+               guard let file = media as? TelegramMediaFile else { return false }
+               return file.isVoice || file.isInstantVideo
+           }) {
+            actions.append(.action(ContextMenuActionItem(text: "Сжечь", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.contextMenu.primaryColor)
+            }, action: { _, dismiss in
+                let _ = context.engine.messages.burnEphemeralMediaForSender(messageId: message.id).startStandalone()
+                dismiss(.default)
+            })))
+        }
+
         if isSharedMediaPolls && messages.count == 1 {
             actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.SharedMedia_ViewInChat, icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/GoToMessage"), color: theme.actionSheet.primaryTextColor)
