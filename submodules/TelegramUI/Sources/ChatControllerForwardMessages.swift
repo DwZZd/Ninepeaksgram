@@ -34,7 +34,7 @@ extension ChatControllerImpl {
         if message.shouldPersistViewOnceMedia {
             return true
         }
-        return MiscSettingsManager.shared.shouldBypassCopyProtection && message.isCopyProtectedIgnoringBypass()
+        return MiscSettingsManager.shared.shouldBypassCopyProtection && message.isCopyProtected()
     }
     
     private func forwardMessagesNeedPlainCopy(_ messages: [Message]) -> Bool {
@@ -214,7 +214,7 @@ extension ChatControllerImpl {
         }
     }
     
-    func forwardMessages(messageIds: [MessageId], options: ChatInterfaceForwardOptionsState? = nil, resetCurrent: Bool = false) {
+    func forwardMessages(forceHideNames: Bool = false, messageIds: [EngineMessage.Id], options: ChatInterfaceForwardOptionsState? = nil, resetCurrent: Bool = false) {
         let _ = (self.context.engine.data.get(EngineDataMap(
             messageIds.map(TelegramEngine.EngineData.Item.Messages.Message.init)
         ))
@@ -222,11 +222,12 @@ extension ChatControllerImpl {
             let sortedMessages = messages.values.compactMap { $0?._asMessage() }.sorted { lhs, rhs in
                 return lhs.id < rhs.id
             }
-            self?.forwardMessages(messages: sortedMessages, options: options, resetCurrent: resetCurrent)
+            self?.forwardMessages(forceHideNames: forceHideNames, messages: sortedMessages, options: options, resetCurrent: resetCurrent)
         })
     }
 
-    func forwardMessages(messages: [Message], options: ChatInterfaceForwardOptionsState? = nil, resetCurrent: Bool) {
+    func forwardMessages(forceHideNames: Bool = false, messages: [EngineRawMessage], options: ChatInterfaceForwardOptionsState? = nil, resetCurrent: Bool) {
+        let options = forceHideNames ? ChatInterfaceForwardOptionsState(hideNames: true, hideCaptions: options?.hideCaptions ?? false, unhideNamesOnCaptionChange: false) : options
         let _ = self.presentVoiceMessageDiscardAlert(action: {
             var filter: ChatListNodePeersFilter = [.onlyWriteable, .excludeDisabled, .doNotSearchMessages]
             var hasPublicPolls = false
@@ -249,9 +250,9 @@ extension ChatControllerImpl {
                 }
             }
             var attemptSelectionImpl: ((EnginePeer, ChatListDisabledPeerReason) -> Void)?
-            let controller = self.context.sharedContext.makePeerSelectionController(PeerSelectionControllerParams(context: self.context, updatedPresentationData: self.updatedPresentationData, filter: filter, hasFilters: true, attemptSelection: { peer, _, reason in
+            let controller = self.context.sharedContext.makePeerSelectionController(PeerSelectionControllerParams(context: self.context, forceHideNames: forceHideNames, updatedPresentationData: self.updatedPresentationData, filter: filter, hasFilters: true, title: forceHideNames ? self.updatedPresentationData.0.strings.Conversation_ForwardOptions_HideSendersNames : nil, attemptSelection: { peer, _, reason in
                 attemptSelectionImpl?(peer, reason)
-            }, multipleSelection: true, forwardedMessageIds: messages.map { $0.id }, initialForwardOptionsState: options, selectForumThreads: true))
+            }, multipleSelection: true, forwardedMessageIds: messages.map { $0.id }, selectForumThreads: true))
             let context = self.context
             attemptSelectionImpl = { [weak self, weak controller] peer, reason in
                 guard let strongSelf = self, let controller = controller else {
@@ -516,14 +517,14 @@ extension ChatControllerImpl {
                             let transformedMessages = strongSelf.transformEnqueueMessages(result, silentPosting: true)
                             commit(transformedMessages)
                         case .schedule:
-                            strongSelf.presentScheduleTimePicker(completion: { [weak self] scheduleTime, repeatPeriod in
+                            strongSelf.presentScheduleTimePicker(completion: { [weak self] timeResult in
                                 if let strongSelf = self {
-                                    let transformedMessages = strongSelf.transformEnqueueMessages(result, silentPosting: false, scheduleTime: scheduleTime, repeatPeriod: repeatPeriod)
+                                    let transformedMessages = strongSelf.transformEnqueueMessages(result, silentPosting: timeResult.silentPosting, scheduleTime: timeResult.time, repeatPeriod: timeResult.repeatPeriod)
                                     commit(transformedMessages)
                                 }
                             })
                         case .whenOnline:
-                            let transformedMessages = strongSelf.transformEnqueueMessages(result, silentPosting: false, scheduleTime: scheduleWhenOnlineTimestamp)
+                            let transformedMessages = strongSelf.transformEnqueueMessages(result, silentPosting: strongSelf.presentationInterfaceState.interfaceState.silentPosting, scheduleTime: scheduleWhenOnlineTimestamp)
                             commit(transformedMessages)
                         }
                     }
@@ -574,7 +575,7 @@ extension ChatControllerImpl {
                 }
                 
                 if case .peer(peerId) = strongSelf.chatLocation, strongSelf.parentController == nil, !isPinnedMessages {
-                    strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withUpdatedForwardMessageIds(messages.map { $0.id }).withUpdatedForwardOptionsState(ChatInterfaceForwardOptionsState(hideNames: !hasNotOwnMessages, hideCaptions: false, unhideNamesOnCaptionChange: false)).withoutSelectionState() }).updatedSearch(nil) })
+                    strongSelf.updateChatPresentationInterfaceState(animated: false, interactive: true, { $0.updatedInterfaceState({ $0.withUpdatedForwardMessageIds(messages.map { $0.id }).withUpdatedForwardOptionsState(ChatInterfaceForwardOptionsState(hideNames: !hasNotOwnMessages || (options?.hideNames ?? false), hideCaptions: false, unhideNamesOnCaptionChange: false)).withoutSelectionState() }).updatedSearch(nil) })
                     strongSelf.updateItemNodesSearchTextHighlightStates()
                     strongSelf.searchResultsController = nil
                     strongController.dismiss()

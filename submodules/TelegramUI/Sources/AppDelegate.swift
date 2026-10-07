@@ -559,7 +559,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
-        let maybeAppGroupUrl = self.resolvedAppGroupContainer(bundleId: baseAppBundleId)
+        let appGroupUrl = self.resolvedAppGroupContainer(bundleId: baseAppBundleId)
         
         let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
         self.buildConfig = buildConfig
@@ -598,7 +598,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                 tokenEnvironment = "production"
                 #endif
                 
-                let data = buildConfig.bundleData(withAppToken: token, tokenType: "apns", tokenEnvironment: tokenEnvironment, signatureDict: signatureDict)
+                let data = buildConfig.bundleData(withAppToken: token, tokenType: "apns", tokenEnvironment: tokenEnvironment, signatureDict: nil)
                 if let data = data, let _ = String(data: data, encoding: .utf8) {
                 } else {
                     Logger.shared.log("data", "can't deserialize")
@@ -669,11 +669,6 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             useBetaFeatures: !buildConfig.isAppStoreBuild,
             isICloudEnabled: buildConfig.isICloudEnabled
         )
-        
-        guard let appGroupUrl = maybeAppGroupUrl else {
-            self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
-            return true
-        }
         
         var isDebugConfiguration = false
         #if DEBUG
