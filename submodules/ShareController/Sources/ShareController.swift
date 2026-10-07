@@ -2320,7 +2320,7 @@ public final class ShareController: ViewController {
                             if let entities = message.textEntitiesAttribute?.entities, !entities.isEmpty {
                                 attributes.append(TextEntitiesMessageAttribute(entities: entities))
                             }
-                            messagesToEnqueue.append(.message(text: message.text, attributes: attributes, inlineStickers: [:], mediaReference: .message(message: MessageReference(message), media: media), threadId: threadId, replyToMessageId: replyToMessageId.flatMap { EngineMessageReplySubject(messageId: $0, quote: nil, todoItemId: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: []))
+                            messagesToEnqueue.append(.message(text: message.text, attributes: attributes, inlineStickers: [:], mediaReference: .message(message: MessageReference(message), media: media), threadId: threadId, replyToMessageId: replyToMessageId.flatMap { EngineMessageReplySubject(messageId: $0, quote: nil, innerSubject: nil) }, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: []))
                         } else {
                             messagesToEnqueue.append(.forward(source: message.id, threadId: threadId, grouping: .auto, attributes: [], correlationId: correlationId))
                         }
