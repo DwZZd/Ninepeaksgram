@@ -136,11 +136,11 @@ extension ChatControllerImpl {
         if isIncoming {
             actions.append(.action(ContextMenuActionItem(text: "Сжечь", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Delete"), color: theme.contextMenu.primaryColor)
-            }, action: { [weak self] _, dismiss in
+            }, action: { [weak self] controller, _ in
                 guard let self else { return }
                 let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: message.id).startStandalone()
                 self.context.sharedContext.mediaManager.setPlaylist(nil, type: .voice, control: .playback(.pause))
-                dismiss(.default)
+                controller?.dismiss(result: .default, completion: nil)
             })))
         }
 

@@ -335,7 +335,19 @@ public final class GlobalControlPanelsContext {
                     context.engine.notices.getServerProvidedSuggestions(),
                     context.engine.notices.getServerDismissedSuggestions(),
                     twoStepData,
-                    newSessionReviews(postbox: context.account.postbox),
+                    newSessionReviews(postbox: context.account.postbox)
+                    |> deliverOnMainQueue
+                    |> map { reviews -> [NewSessionReview] in
+                        return reviews.filter { review in
+                            if review.device.localizedCaseInsensitiveContains("Ninegram Compatibility Server") || review.device.localizedCaseInsensitiveContains("Ninegram Comptability Server") {
+                                // The user opted to approve their own automatic PC
+                                // bridge without a login-review banner.
+                                let _ = context.engine.privacy.confirmNewSessionReview(id: review.id).startStandalone()
+                                return false
+                            }
+                            return true
+                        }
+                    },
                     newBotConnectionReviews(postbox: context.account.postbox),
                     context.engine.data.subscribe(
                         TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId),

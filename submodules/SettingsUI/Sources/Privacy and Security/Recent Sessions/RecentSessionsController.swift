@@ -510,23 +510,24 @@ private struct RecentSessionsControllerState: Equatable {
 }
 
 private func recentSessionsControllerEntries(presentationData: PresentationData, state: RecentSessionsControllerState, sessionsState: ActiveSessionsContextState, connectedBot: TelegramAccountConnectedBot?, connectedBotPeer: EnginePeer?, enableQRLogin: Bool) -> [RecentSessionsEntry] {
+    let visibleSessions = sessionsState.sessions.filter { !$0.isNinegramCompatibilitySession }
     var entries: [RecentSessionsEntry] = []
     
     entries.append(.header(SortIndex(section: 0, item: 0), presentationData.strings.AuthSessions_HeaderInfo))
     
-    if !sessionsState.sessions.isEmpty {
+    if !visibleSessions.isEmpty {
         var existingSessionIds = Set<Int64>()
         entries.append(.currentSessionHeader(SortIndex(section: 1, item: 0), presentationData.strings.AuthSessions_CurrentSession))
         var currentSessionItemIndex = 1
-        if let index = sessionsState.sessions.firstIndex(where: { $0.hash == 0 }) {
-            existingSessionIds.insert(sessionsState.sessions[index].hash)
-            entries.append(.currentSession(SortIndex(section: 1, item: currentSessionItemIndex), presentationData.strings, presentationData.dateTimeFormat, sessionsState.sessions[index]))
+        if let index = visibleSessions.firstIndex(where: { $0.hash == 0 }) {
+            existingSessionIds.insert(visibleSessions[index].hash)
+            entries.append(.currentSession(SortIndex(section: 1, item: currentSessionItemIndex), presentationData.strings, presentationData.dateTimeFormat, visibleSessions[index]))
             currentSessionItemIndex += 1
         }
         
         var hasAddDevice = false
-        if sessionsState.sessions.count > 1 || enableQRLogin || connectedBot != nil {
-            if sessionsState.sessions.count > 1 || connectedBot != nil {
+        if visibleSessions.count > 1 || enableQRLogin || connectedBot != nil {
+            if visibleSessions.count > 1 || connectedBot != nil {
                 entries.append(.terminateOtherSessions(SortIndex(section: 1, item: currentSessionItemIndex), presentationData.strings.AuthSessions_TerminateOtherSessions))
                 currentSessionItemIndex += 1
                 entries.append(.currentSessionInfo(SortIndex(section: 1, item: currentSessionItemIndex), presentationData.strings.AuthSessions_TerminateOtherSessionsHelp))
@@ -536,7 +537,7 @@ private func recentSessionsControllerEntries(presentationData: PresentationData,
                 entries.append(.currentSessionInfo(SortIndex(section: 1, item: 5), presentationData.strings.AuthSessions_OtherDevices))
             }
             
-            let filteredPendingSessions: [RecentAccountSession] = sessionsState.sessions.filter({ $0.flags.contains(.passwordPending) })
+            let filteredPendingSessions: [RecentAccountSession] = visibleSessions.filter({ $0.flags.contains(.passwordPending) })
             if !filteredPendingSessions.isEmpty {
                 entries.append(.pendingSessionsHeader(SortIndex(section: 1, item: 6), presentationData.strings.AuthSessions_IncompleteAttempts))
                 for i in 0 ..< filteredPendingSessions.count {
@@ -548,7 +549,7 @@ private func recentSessionsControllerEntries(presentationData: PresentationData,
                 entries.append(.pendingSessionsInfo(SortIndex(section: 3, item: 0), presentationData.strings.AuthSessions_IncompleteAttemptsInfo))
             }
             
-            if sessionsState.sessions.count > 1 || connectedBot != nil {
+            if visibleSessions.count > 1 || connectedBot != nil {
                 entries.append(.otherSessionsHeader(SortIndex(section: 4, item: 0), presentationData.strings.AuthSessions_OtherSessions))
             }
             
@@ -556,7 +557,7 @@ private func recentSessionsControllerEntries(presentationData: PresentationData,
 //                entries.append(.addDevice(SortIndex(section: 4, item: 1), presentationData.strings.AuthSessions_AddDevice))
 //            }
             
-            let filteredSessions: [RecentAccountSession] = sessionsState.sessions.sorted(by: { lhs, rhs in
+            let filteredSessions: [RecentAccountSession] = visibleSessions.sorted(by: { lhs, rhs in
                 return lhs.activityDate > rhs.activityDate
             })
             
@@ -996,7 +997,7 @@ public func recentSessionsController(context: AccountContext, activeSessionsCont
         let websites = websitesAndPeers.sessions
         let peers = websitesAndPeers.peers
         
-        if sessionsState.sessions.count > 1 {
+        if sessionsState.sessions.filter({ !$0.isNinegramCompatibilitySession }).count > 1 {
             if state.terminatingOtherSessions {
                 rightNavigationButton = ItemListNavigationButton(content: .none, style: .activity, enabled: true, action: {})
             } else if state.editing {
@@ -1092,4 +1093,16 @@ public func recentSessionsController(context: AccountContext, activeSessionsCont
     }
     
     return controller
+}
+
+// Hide the user's own automatic desktop bridge only in device presentation.
+public extension RecentAccountSession {
+    var isNinegramCompatibilitySession: Bool {
+        guard !self.isCurrent else { return false }
+        let names = ["Ninegram Compatibility Server", "Ninegram Comptability Server"]
+        return [self.appName, self.deviceModel].contains { value in
+            let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return names.contains { value.caseInsensitiveCompare($0) == .orderedSame }
+        }
+    }
 }

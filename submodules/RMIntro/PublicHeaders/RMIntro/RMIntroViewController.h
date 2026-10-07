@@ -61,6 +61,7 @@
 }
 
 @property (nonatomic) CGRect defaultFrame;
+@property (nonatomic, strong) UIView *introAnimationView;
 
 - (instancetype)initWithBackgroundColor:(UIColor *)backgroundColor primaryColor:(UIColor *)primaryColor buttonColor:(UIColor *)buttonColor accentColor:(UIColor *)accentColor regularDotColor:(UIColor *)regularDotColor highlightedDotColor:(UIColor *)highlightedDotColor suggestedLocalizationSignal:(SSignal *)suggestedLocalizationSignal;
 

@@ -9,6 +9,34 @@ import TelegramPresentationData
 import LegacyComponents
 import SolidRoundedButtonNode
 import RMIntro
+import AnimatedStickerNode
+import TelegramAnimatedStickerNode
+
+private final class NinegramIntroAnimationView: UIView {
+    private let animationNode: AnimatedStickerNode = DefaultAnimatedStickerNodeImpl()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        self.isUserInteractionEnabled = false
+        self.accessibilityLabel = "👅"
+        self.animationNode.setup(source: AnimatedStickerNodeLocalFileSource(name: "NinegramTongue"), width: 512, height: 512, playbackMode: .loop, mode: .direct(cachePathPrefix: nil))
+        self.addSubview(self.animationNode.view)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        self.animationNode.frame = self.bounds
+        self.animationNode.updateLayout(size: self.bounds.size)
+    }
+
+    func setVisible(_ visible: Bool) {
+        self.animationNode.visibility = visible
+    }
+}
 
 public final class AuthorizationSequenceSplashController: ViewController {
     private var controllerNode: AuthorizationSequenceSplashControllerNode {
@@ -20,6 +48,7 @@ public final class AuthorizationSequenceSplashController: ViewController {
     private let theme: PresentationTheme
     
     private let controller: RMIntroViewController
+    private let introAnimationView = NinegramIntroAnimationView(frame: .zero)
     
     private var validLayout: ContainerViewLayout?
     
@@ -77,6 +106,8 @@ public final class AuthorizationSequenceSplashController: ViewController {
 
         super.init(navigationBarPresentationData: nil)
         
+        self.controller.introAnimationView = self.introAnimationView
+
         self._hasGlassStyle = true
         
         self.supportedOrientations = ViewControllerSupportedOrientations(regularSize: .all, compactSize: .portrait)
@@ -148,6 +179,7 @@ public final class AuthorizationSequenceSplashController: ViewController {
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         self.addControllerIfNeeded()
+        self.introAnimationView.setVisible(true)
         self.controller.viewWillAppear(false)
     }
     
@@ -166,6 +198,7 @@ public final class AuthorizationSequenceSplashController: ViewController {
     public override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         
+        self.introAnimationView.setVisible(false)
         controller.viewDidDisappear(animated)
     }
     

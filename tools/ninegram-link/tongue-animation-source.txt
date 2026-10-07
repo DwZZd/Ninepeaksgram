@@ -1,0 +1,3 @@
+Telegram animated emoji U+1F445 (tongue).
+Asset mirror: https://github.com/saeedtahmtan/telemoji/blob/main/tgs/animated/U%2B1F445_1.tgs
+Bundled locally for the signed-out Ninegram welcome screen.

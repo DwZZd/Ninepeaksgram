@@ -161,7 +161,7 @@ typedef enum {
         _englishStrings = englishStrings;
         
         _headlines = @[ @"Ninegram", _englishStrings[@"Tour.Title2"],  _englishStrings[@"Tour.Title6"], _englishStrings[@"Tour.Title3"], _englishStrings[@"Tour.Title4"], _englishStrings[@"Tour.Title5"]];
-        _descriptions = @[_englishStrings[@"Tour.Text1"], _englishStrings[@"Tour.Text2"],  _englishStrings[@"Tour.Text6"], _englishStrings[@"Tour.Text3"], _englishStrings[@"Tour.Text4"], _englishStrings[@"Tour.Text5"]];
+        _descriptions = @[@"cbfee1ebfe20cbe8e7f3", _englishStrings[@"Tour.Text2"],  _englishStrings[@"Tour.Text6"], _englishStrings[@"Tour.Text3"], _englishStrings[@"Tour.Text4"], _englishStrings[@"Tour.Text5"]];
         
         __weak RMIntroViewController *weakSelf = self;
         _didEnterBackgroundObserver = [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:nil usingBlock:^(__unused NSNotification *notification)
@@ -230,8 +230,9 @@ typedef enum {
 }
 
 - (void)animateIn {
-    CGPoint logoTargetPosition = _glkView.center;
-    _glkView.center = CGPointMake(self.view.bounds.size.width / 2.0, self.view.bounds.size.height / 2.0);
+    UIView *logoView = self.introAnimationView ?: _glkView;
+    CGPoint logoTargetPosition = logoView.center;
+    logoView.center = CGPointMake(self.view.bounds.size.width / 2.0, self.view.bounds.size.height / 2.0);
     
     RMIntroPageView *firstPage = (RMIntroPageView *)[_pageViews firstObject];
     CGPoint headerTargetPosition = firstPage.headerLabel.center;
@@ -246,24 +247,24 @@ typedef enum {
     CGPoint buttonTargetPosition = _startButton.center;
     _startButton.center = CGPointMake(buttonTargetPosition.x, buttonTargetPosition.y + 220.0);
     
-    _glkView.transform = CGAffineTransformMakeScale(0.66, 0.66);
+    logoView.transform = CGAffineTransformMakeScale(0.66, 0.66);
         
     [UIView animateWithDuration:0.65 delay:0.15 usingSpringWithDamping:1.2f initialSpringVelocity:0.0 options:kNilOptions animations:^{
-        _glkView.center = logoTargetPosition;
+        logoView.center = logoTargetPosition;
         firstPage.headerLabel.center = headerTargetPosition;
         firstPage.descriptionLabel.center = descriptionTargetPosition;
         _pageControl.center = pageControlTargetPosition;
         _startButton.center = buttonTargetPosition;
-        _glkView.transform = CGAffineTransformIdentity;
+        logoView.transform = CGAffineTransformIdentity;
     } completion:nil];
     
-    _glkView.alpha = 0.0;
+    logoView.alpha = 0.0;
     _pageScrollView.alpha = 0.0;
     _pageControl.alpha = 0.0;
     _startButton.alpha = 0.0;
     
     [UIView animateWithDuration:0.3 delay:0.15 options:kNilOptions animations:^{
-        _glkView.alpha = 1.0;
+        logoView.alpha = 1.0;
         _pageScrollView.alpha = 1.0;
         _pageControl.alpha = 1.0;
         _startButton.alpha = 1.0;
@@ -377,6 +378,10 @@ typedef enum {
         [_pageScrollView addSubview:p];
     }
     [_pageScrollView setPage:0];
+    if (self.introAnimationView != nil) {
+        self.introAnimationView.userInteractionEnabled = false;
+        [self.view addSubview:self.introAnimationView];
+    }
     
     [self.view addSubview:_alternativeLanguageButton];
     
@@ -390,6 +395,11 @@ typedef enum {
 }
 
 - (UIView *)createAnimationSnapshot {
+    if (self.introAnimationView != nil && self.introAnimationView.alpha > 0.0) {
+        UIView *snapshot = [self.introAnimationView snapshotViewAfterScreenUpdates:false];
+        snapshot.frame = self.introAnimationView.frame;
+        return snapshot;
+    }
     UIImage *image = _glkView.snapshot;
     UIImageView *imageView = [[UIImageView alloc] initWithFrame:_glkView.frame];
     imageView.image = image;
@@ -551,6 +561,9 @@ typedef enum {
     
     _pageControl.frame = CGRectMake(0, pageControlY, self.view.bounds.size.width, 7);
     _glkView.frame = CGRectChangedOriginY(_glkView.frame, glViewY - statusBarHeight);
+    CGFloat animationSize = [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad ? 240.0 : 200.0;
+    self.introAnimationView.frame = CGRectMake(floor((self.view.bounds.size.width - animationSize) / 2.0), glViewY - statusBarHeight, animationSize, animationSize);
+    [self updateIntroAnimationAppearance];
     
     CGFloat startButtonWidth = MIN(430.0 - 48.0, self.view.bounds.size.width - 48.0f);
     UIView *startButton = self.createStartButton(startButtonWidth);
@@ -577,6 +590,7 @@ typedef enum {
     [super viewWillAppear:animated];
     
     [self loadGL];
+    [self updateLayout];
 }
 
 - (void)viewDidDisappear:(BOOL)animated
@@ -663,8 +677,19 @@ static bool justEndDragging;
 
 NSInteger _current_page_end;
 
+- (void)updateIntroAnimationAppearance
+{
+    if (self.introAnimationView != nil) {
+        CGFloat pageOffset = _pageScrollView.contentOffset.x / MAX(1.0, _pageScrollView.bounds.size.width);
+        CGFloat alpha = 1.0 - MIN(1.0, MAX(0.0, pageOffset));
+        self.introAnimationView.alpha = alpha;
+        _glkView.alpha = 1.0 - alpha;
+    }
+}
+
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+    [self updateIntroAnimationAppearance];
     CGFloat offset = (scrollView.contentOffset.x - _currentPage * scrollView.frame.size.width) / self.view.frame.size.width;
     
     set_scroll_offset((float)offset);
