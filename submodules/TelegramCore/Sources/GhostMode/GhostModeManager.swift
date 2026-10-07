@@ -80,6 +80,9 @@ public final class GhostModeManager {
         get { defaults.bool(forKey: Keys.forceOffline) }
         set {
             defaults.set(newValue, forKey: Keys.forceOffline)
+            if newValue {
+                MiscSettingsManager.shared.disableAlwaysOnlineForMutualExclusion()
+            }
             notifySettingsChanged()
         }
     }
@@ -96,22 +99,21 @@ public final class GhostModeManager {
         return isEnabled && hideStoryViews
     }
     
-    /// Online status is hidden only when Ghost Mode is on AND Always Online is NOT active.
-    /// Checks alwaysOnline raw value (not shouldAlwaysBeOnline) so ghost mode works
-    /// even when the Misc master toggle is off.
+    /// Only an enabled Always Online setting can override hidden presence.
+    /// A stored toggle in the disabled Misc section must not force us online.
     public var shouldHideOnlineStatus: Bool {
         guard isEnabled && hideOnlineStatus else { return false }
-        return !MiscSettingsManager.shared.alwaysOnline
+        return !MiscSettingsManager.shared.shouldAlwaysBeOnline
     }
     
     public var shouldHideTypingIndicator: Bool {
         return isEnabled && hideTypingIndicator
     }
     
-    /// Force offline only when Ghost Mode is on AND Always Online is NOT active.
+    /// Automatic offline works independently of the Ghost Mode master toggle.
     public var shouldForceOffline: Bool {
         guard forceOffline else { return false }
-        return !MiscSettingsManager.shared.alwaysOnline
+        return !MiscSettingsManager.shared.shouldAlwaysBeOnline
     }
     
     /// Count of active features (e.g., "5/5")

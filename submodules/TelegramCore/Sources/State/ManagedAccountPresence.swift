@@ -18,6 +18,9 @@ private final class AccountPresenceManagerImpl {
     
     // Tracks the last app-level online value so we can refresh independently
     private var wasOnline: Bool = false
+    private var requestedOnline: Bool?
+    private var requestInProgress = false
+    private var requestGeneration = 0
     
     // Observers for settings change notifications
     private var ghostModeObserver: NSObjectProtocol?
@@ -79,13 +82,10 @@ private final class AccountPresenceManagerImpl {
     /// Compute the effective online state and push it to Telegram.
     /// Priority chain (highest → lowest):
     ///   1. Always Online enabled → force online = true
-    ///   2. Ghost Mode hide online status → skip update entirely (freeze last-seen)
+    ///   2. Ghost Mode / automatic offline → explicitly send offline
     ///   3. Default app behaviour (wasOnline)
     private func refreshPresence() {
-        // Use raw alwaysOnline flag (not shouldAlwaysBeOnline) so it works independently
-        // of the Misc master toggle. Ghost Mode's shouldHideOnlineStatus already checks
-        // !MiscSettingsManager.shared.alwaysOnline internally.
-        let alwaysOnline = MiscSettingsManager.shared.alwaysOnline
+        let alwaysOnline = MiscSettingsManager.shared.shouldAlwaysBeOnline
         let ghostHideOnline = GhostModeManager.shared.shouldHideOnlineStatus
         
         if alwaysOnline {
@@ -100,24 +100,21 @@ private final class AccountPresenceManagerImpl {
     }
     
     private func sendPresenceUpdate(online: Bool) {
+        // A timer or settings notification must not cancel an unfinished request
+        // for the same state. Slow connections could otherwise never go offline.
+        if self.requestInProgress && self.requestedOnline == online {
+            return
+        }
+        self.requestedOnline = online
+        self.requestInProgress = true
+        self.requestGeneration += 1
+        let generation = self.requestGeneration
         self.onlineTimer?.invalidate()
         self.onlineTimer = nil
         let request: Signal<Api.Bool, MTRpcError>
         if online {
-            // Keep pinging every 30 s so the server keeps us online
-            let timer = SignalKitTimer(timeout: 30.0, repeat: false, completion: { [weak self] in
-                guard let self = self else { return }
-                self.refreshPresence()
-            }, queue: self.queue)
-            self.onlineTimer = timer
-            timer.start()
             request = self.network.request(Api.functions.account.updateStatus(offline: .boolFalse))
         } else {
-            let timer = SignalKitTimer(timeout: 2.0, repeat: false, completion: { [weak self] in
-                self?.refreshPresence()
-            }, queue: self.queue)
-            self.onlineTimer = timer
-            timer.start()
             request = self.network.request(Api.functions.account.updateStatus(offline: .boolTrue))
         }
         
@@ -127,7 +124,19 @@ private final class AccountPresenceManagerImpl {
             return .single(.boolFalse)
         }
         |> deliverOn(self.queue)).start(completed: { [weak self] in
-            self?.isPerformingUpdate.set(false)
+            guard let self, self.requestGeneration == generation else { return }
+            self.requestInProgress = false
+            self.isPerformingUpdate.set(false)
+            // Schedule after completion, so retries cannot cancel the RPC. Normal
+            // background offline sends once; privacy mode refreshes while active.
+            let enforceOffline = self.wasOnline && (GhostModeManager.shared.shouldForceOffline || GhostModeManager.shared.shouldHideOnlineStatus)
+            if online || enforceOffline {
+                let timer = SignalKitTimer(timeout: online ? 30.0 : 2.0, repeat: false, completion: { [weak self] in
+                    self?.refreshPresence()
+                }, queue: self.queue)
+                self.onlineTimer = timer
+                timer.start()
+            }
         }))
     }
 }

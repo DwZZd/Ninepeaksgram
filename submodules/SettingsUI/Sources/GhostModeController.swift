@@ -211,7 +211,7 @@ private func ghostModeControllerEntries(presentationData: PresentationData, stat
     // Master section
     entries.append(.masterHeader(theme, "РЕЖИМ ПРИЗРАКА"))
     entries.append(.masterToggle(theme, "Режим призрака", state.isEnabled, activeCount, 5))
-    entries.append(.masterInfo(theme, "Когда включен, выбранные функции приватности будут активны."))
+    entries.append(.masterInfo(theme, "Когда включен, выбранные функции приватности будут активны. Автоматический «офлайн» можно использовать отдельно."))
     
     // Features section
     entries.append(.featuresHeader(theme, "ФУНКЦИИ"))

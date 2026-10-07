@@ -2355,8 +2355,8 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             })), at: 0)
             sgActions.insert(.separator, at: 1)
             
-            let swiftgramSubMenu: ContextMenuItem = .action(ContextMenuActionItem(text: "Swiftgram", icon: { theme in
-                return generateTintedImage(image: UIImage(bundleImageName: "SwiftgramContextMenu"), color: theme.actionSheet.primaryTextColor)
+            let swiftgramSubMenu: ContextMenuItem = .action(ContextMenuActionItem(text: "Ninegram", icon: { _ in
+                return UIImage(bundleImageName: "SwiftgramContextMenu")
             }, action: { c, f in
                 popSGItems = { [weak c] in
                     c?.popItems()
