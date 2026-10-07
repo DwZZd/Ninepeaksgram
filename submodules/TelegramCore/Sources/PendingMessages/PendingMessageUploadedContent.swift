@@ -797,6 +797,8 @@ private func maybeCacheUploadedResource(postbox: Postbox, key: CachedSentMediaRe
 }
 
 private func uploadedMediaImageContent(network: Network, postbox: Postbox, transformOutgoingMessageMedia: TransformOutgoingMessageMedia?, messageMediaPreuploadManager: MessageMediaPreuploadManager, forceReupload: Bool, isGrouped: Bool, peerId: PeerId, image: TelegramMediaImage, messageId: MessageId?, text: String, attributes: [MessageAttribute], autoremoveMessageAttribute: AutoremoveTimeoutMessageAttribute?, autoclearMessageAttribute: AutoclearTimeoutMessageAttribute?, auxiliaryMethods: AccountAuxiliaryMethods) -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError> {
+    // A plain local copy must not recover the original photo's cloud/TTL binding from the cache.
+    let forceReupload = forceReupload || (image.imageId.namespace == Namespaces.Media.LocalImage && image.reference == nil)
     guard let largestRepresentation = largestImageRepresentation(image.representations) else {
         return .single(.content(PendingMessageUploadedContentAndReuploadInfo(content: .text(text), reuploadInfo: nil, cacheReferenceKey: nil)))
     }
@@ -1326,6 +1328,8 @@ public func statsCategoryForFileWithAttributes(_ attributes: [TelegramMediaFileA
 }
 
 private func uploadedMediaFileContent(network: Network, postbox: Postbox, auxiliaryMethods: AccountAuxiliaryMethods, transformOutgoingMessageMedia: TransformOutgoingMessageMedia?, messageMediaPreuploadManager: MessageMediaPreuploadManager, forceReupload: Bool, isGrouped: Bool, isPaid: Bool, passFetchProgress: Bool, forceNoBigParts: Bool, peerId: PeerId, messageId: MessageId?, text: String, attributes: [MessageAttribute], autoremoveMessageAttribute: AutoremoveTimeoutMessageAttribute?, autoclearMessageAttribute: AutoclearTimeoutMessageAttribute?, file: TelegramMediaFile) -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError> {
+    // Changing fileId alone does not bypass the cloud-resource and sent-media-cache fast paths.
+    let forceReupload = forceReupload || (file.fileId.namespace == Namespaces.Media.LocalFile && file.resource is CloudDocumentMediaResource)
     return maybePredownloadedFileResource(postbox: postbox, auxiliaryMethods: auxiliaryMethods, peerId: peerId, resource: file.resource, autoRemove: autoremoveMessageAttribute != nil || autoclearMessageAttribute != nil, forceRefresh: forceReupload)
     |> mapToSignal { result -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError> in
         var referenceKey: CachedSentMediaReferenceKey?

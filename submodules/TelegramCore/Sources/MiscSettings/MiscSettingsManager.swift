@@ -86,7 +86,7 @@ public final class MiscSettingsManager {
     }
     
     public var shouldBypassScreenshotProtection: Bool {
-        return isEnabled && bypassScreenshotProtection
+        return bypassScreenshotProtection
     }
     
     public var shouldBlockAds: Bool {

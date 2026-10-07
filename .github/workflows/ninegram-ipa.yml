@@ -129,17 +129,17 @@ jobs:
 
           mkdir -p build/artifacts
           IPA_PATH=""
-          for candidate in bazel-bin/Telegram/Telegram.ipa bazel-out/*/bin/Telegram/Telegram.ipa; do
+          for candidate in bazel-bin/Telegram/Swiftgram.ipa bazel-out/*/bin/Telegram/Swiftgram.ipa; do
             if [[ -e "$candidate" ]]; then
               IPA_PATH="$candidate"
               break
             fi
           done
           if [[ -z "$IPA_PATH" ]]; then
-            IPA_PATH="$(find -L bazel-bin bazel-out -name 'Telegram.ipa' -print -quit 2>/dev/null || true)"
+            IPA_PATH="$(find -L bazel-bin bazel-out -name 'Swiftgram.ipa' -print -quit 2>/dev/null || true)"
           fi
           if [[ -z "$IPA_PATH" ]]; then
-            echo "::error::Telegram.ipa was not produced"
+            echo "::error::Swiftgram.ipa was not produced"
             find -L bazel-bin bazel-out -name '*.ipa' -print || true
             exit 1
           fi
@@ -157,7 +157,9 @@ jobs:
             -name '*.app' -o -name '*.appex' -o -name '*.framework' \
           \))
 
-          lipo -archs build/unsigned/Payload/Telegram.app/Telegram | grep -qw arm64
+          APP_PATH="$(find build/unsigned/Payload -maxdepth 1 -type d -name '*.app' -print -quit)"
+          APP_EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Info.plist")"
+          lipo -archs "$APP_PATH/$APP_EXECUTABLE" | grep -qw arm64
           (
             cd build/unsigned
             ditto -c -k --sequesterRsrc --keepParent \

@@ -244,8 +244,9 @@ public final class SecretMediaPreviewController: ViewController {
     
     @objc func burnPressed() {
         let _ = self.context.engine.messages.burnEphemeralMediaForSender(messageId: self.messageId).start()
-        self.navigationItem.rightBarButtonItem?.isEnabled = false
-        self.navigationItem.rightBarButtonItem?.title = "Сожжено"
+        let item = UIBarButtonItem(title: "Сожжено", style: .plain, target: nil, action: nil)
+        item.isEnabled = false
+        self.navigationItem.rightBarButtonItem = item
     }
     
     public override func loadDisplayNode() {

@@ -1094,6 +1094,12 @@ if __name__ == '__main__':
         help='Continue build process after an error.',
     )
     buildParser.add_argument(
+        '--disableExtensions',
+        action='store_true',
+        default=False,
+        help='Build without app extensions.',
+    )
+    buildParser.add_argument(
         '--showActions',
         action='store_true',
         default=False,
