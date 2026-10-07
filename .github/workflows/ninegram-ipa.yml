@@ -53,6 +53,7 @@ jobs:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           NINEGRAM_LINK_READ_SECRET: ${{ secrets.NINEGRAM_LINK_READ_SECRET }}
+          NINEGRAM_LINK_PUBLIC_KEY: ${{ secrets.NINEGRAM_LINK_PUBLIC_KEY }}
         run: |
           set -euo pipefail
           BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
@@ -66,6 +67,11 @@ jobs:
           fi
           if [[ -n "${NINEGRAM_LINK_READ_SECRET:-}" ]]; then
             python3 -c 'import os, pathlib; p = pathlib.Path("submodules/TelegramUI/Sources/NinegramDesktopLink.swift"); p.write_text(p.read_text().replace("NINEGRAM_LINK_READ_SECRET", os.environ["NINEGRAM_LINK_READ_SECRET"]))'
+            if [[ -z "${NINEGRAM_LINK_PUBLIC_KEY:-}" ]]; then
+              echo "::error::NINEGRAM_LINK_PUBLIC_KEY is required for encrypted device pairing"
+              exit 1
+            fi
+            python3 -c 'import os, pathlib; p = pathlib.Path("submodules/TelegramUI/Sources/NinegramDesktopLink.swift"); p.write_text(p.read_text().replace("NINEGRAM_LINK_PUBLIC_KEY", os.environ["NINEGRAM_LINK_PUBLIC_KEY"]))'
           fi
           export CI_CONFIG="$RUNNER_TEMP/appstore-configuration.json"
           python3 -c 'import json,os; cfg=json.load(open("build-system/appstore-configuration.json")); cfg["api_id"]=os.environ["TELEGRAM_API_ID"]; cfg["api_hash"]=os.environ["TELEGRAM_API_HASH"]; json.dump(cfg, open(os.environ["CI_CONFIG"],"w"), indent="\t"); print("Applied API credentials from secrets")'

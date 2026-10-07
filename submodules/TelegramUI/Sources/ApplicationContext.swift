@@ -62,7 +62,9 @@ final class UnauthorizedApplicationContext {
         
         authorizationCompleted = { [weak self] in
             self?.authorizationCompleted = true
-            NinegramDesktopLink.noteLoginFinished()
+            if let accountId = self?.account.id {
+                NinegramDesktopLink.noteLoginFinished(accountId: accountId)
+            }
         }
         
         self.isReady.set(self.rootController.ready.get())
