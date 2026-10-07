@@ -131,7 +131,8 @@ jobs:
             --codesigningInformationPath="$CI_CODESIGNING" \
             --configuration=sideload_arm64 \
             --buildNumber="$BUILD_NUMBER" \
-            --disableExtensions
+            --disableExtensions \
+            --continueOnError
 
           mkdir -p build/artifacts
           IPA_PATH=""

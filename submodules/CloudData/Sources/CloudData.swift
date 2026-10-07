@@ -1,4 +1,7 @@
 import Foundation
+#if ENABLE_ICLOUD
+import CloudKit
+#endif
 import MtProtoKit
 import SwiftSignalKit
 import EncryptionProvider
@@ -10,6 +13,7 @@ private enum FetchError {
 
 @available(iOS 10.0, *)
 private func fetchRawData(prefix: String) -> Signal<Data, FetchError> {
+#if ENABLE_ICLOUD
     return Signal { subscriber in
         let container = CKContainer.default()
         let publicDatabase = container.database(with: .public)
@@ -44,6 +48,9 @@ private func fetchRawData(prefix: String) -> Signal<Data, FetchError> {
         return ActionDisposable {
         }
     }
+#else
+    return .fail(.generic)
+#endif
 }
 
 @available(iOS 10.0, *)
