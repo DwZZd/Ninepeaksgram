@@ -348,6 +348,16 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private var recaptchaClientsBySiteKey: [String: Promise<RecaptchaClient>] = [:]
         
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Older builds allowed contradictory stored presence toggles. Honor an
+        // existing automatic-offline choice once when upgrading to this policy.
+        let presenceMigrationKey = "ninegram.presence.offlineMutualExclusionMigrated"
+        if !UserDefaults.standard.bool(forKey: presenceMigrationKey) {
+            if GhostModeManager.shared.forceOffline && MiscSettingsManager.shared.alwaysOnline {
+                MiscSettingsManager.shared.alwaysOnline = false
+            }
+            UserDefaults.standard.set(true, forKey: presenceMigrationKey)
+        }
+
         precondition(!testIsLaunched)
         testIsLaunched = true
         
