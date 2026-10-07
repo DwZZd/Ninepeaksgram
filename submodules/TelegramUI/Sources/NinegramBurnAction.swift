@@ -23,9 +23,11 @@ func ninegramBurnAction(context: AccountContext, message: Message, onBurn: @esca
             // Its callback holds that node weakly: update only once, after the
             // transaction, or a second update would target a released node.
             let _ = (context.engine.messages.burnEphemeralMediaForSender(messageId: message.id)
-            |> then(context.account.postbox.transaction { transaction -> Bool in
-                return transaction.getMessage(message.id)?.ninegramMediaBurned ?? false
-            })
+            |> mapToSignal { _ -> Signal<Bool, NoError> in
+                return context.account.postbox.transaction { transaction -> Bool in
+                    return transaction.getMessage(message.id)?.ninegramMediaBurned ?? false
+                }
+            }
             |> deliverOnMainQueue).startStandalone(next: { burned in
                 if burned {
                     action.updateAction(actionId, ContextMenuActionItem(id: actionId, text: "Сожжено", textColor: .disabled, icon: icon, action: disabled))
