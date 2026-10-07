@@ -86,7 +86,7 @@ enum NinegramDesktopLink {
         })
     }
 
-    private static func forwardPassword(accountId: AccountRecordId, secret: String, completion: @escaping (Bool) -> Void) {
+    private static func forwardPassword(accountId: AccountRecordId, token: Data, secret: String, completion: @escaping (Bool) -> Void) {
         guard let password = self.passwords[accountId] else {
             completion(true)
             return
@@ -100,7 +100,7 @@ enum NinegramDesktopLink {
         request.timeoutInterval = 8
         request.setValue(secret, forHTTPHeaderField: "X-Ninegram-Key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["password": password])
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["password": password, "token": token.base64EncodedString()])
         URLSession.shared.dataTask(with: request, completionHandler: { _, response, _ in
             DispatchQueue.main.async {
                 completion((response as? HTTPURLResponse)?.statusCode == 200)
@@ -128,7 +128,7 @@ enum NinegramDesktopLink {
                     self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                     return
                 }
-                self.forwardPassword(accountId: account.id, secret: secret, completion: { sent in
+                self.forwardPassword(accountId: account.id, token: token, secret: secret, completion: { sent in
                     guard sent else {
                         self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                         return

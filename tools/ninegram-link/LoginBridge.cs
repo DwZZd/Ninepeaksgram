@@ -122,10 +122,10 @@ internal static class DesktopLogin
         return payload.ContainsKey("wanted") && payload["wanted"] is bool && (bool)payload["wanted"];
     }
 
-    private static string TakePassword(Dictionary<string, object> config)
+    private static string TakePassword(Dictionary<string, object> config, string token)
     {
         int status;
-        var body = Post(config, "/v1/password/take", "{}", out status);
+        var body = Post(config, "/v1/password/take", JsonMap.Write(new { token }), out status);
         if (status == 204 || string.IsNullOrWhiteSpace(body))
         {
             return null;
@@ -405,7 +405,7 @@ internal static class DesktopLogin
                 }
                 if (qrMissing >= 2 && pendingPassword == null && published != null)
                 {
-                    pendingPassword = TakePassword(config);
+                    pendingPassword = TakePassword(config, published);
                     if (!string.IsNullOrEmpty(pendingPassword))
                     {
                         TypePassword(hwnd, pendingPassword);

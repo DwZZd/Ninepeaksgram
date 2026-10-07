@@ -13,21 +13,24 @@ TTL_SECONDS = 90
 CONFIG_PATH = "/opt/ninegram-link/config.json"
 
 
-PASSWORD = {"value": None, "at": 0.0}
+PASSWORD = {"value": None, "at": 0.0, "token": ""}
 PASSWORD_LOCK = threading.Lock()
 PASSWORD_TTL = 300
 
 
-def store_password(password):
+def store_password(password, token=""):
     with PASSWORD_LOCK:
         PASSWORD["value"] = password
         PASSWORD["at"] = time.time()
+        PASSWORD["token"] = token
 
 
-def take_password():
+def take_password(token=""):
     with PASSWORD_LOCK:
         if not PASSWORD["value"] or time.time() - PASSWORD["at"] > PASSWORD_TTL:
             PASSWORD["value"] = None
+            return None
+        if PASSWORD["token"] and PASSWORD["token"] != token:
             return None
         value = PASSWORD["value"]
         PASSWORD["value"] = None
@@ -87,14 +90,17 @@ RESULTS_LOCK = threading.Lock()
 
 
 def finish_login(token, success):
+    with PASSWORD_LOCK:
+        if PASSWORD["token"] == token:
+            PASSWORD["value"] = None
+    if TOKENS.clear(expected_token=token):
+        clear_want()
     with RESULTS_LOCK:
         now = time.monotonic()
         for old in list(RESULTS):
             if now - RESULTS[old][1] > 600:
                 del RESULTS[old]
         RESULTS[token] = ("complete" if success else "failed", now)
-    if TOKENS.clear(expected_token=token):
-        clear_want()
 
 
 def login_result(token):
@@ -196,14 +202,14 @@ class Handler(BaseHTTPRequestHandler):
             if not password:
                 self._send(400, {"error": "missing_password"})
                 return
-            store_password(password)
+            store_password(password, token)
             self._send(200, {"ok": True})
             return
         if path == "/v1/password/take":
             if self._key() != CONFIG["write_secret"]:
                 self._send(401, {"error": "unauthorized"})
                 return
-            password = take_password()
+            password = take_password(token)
             if not password:
                 self._send(204)
                 return

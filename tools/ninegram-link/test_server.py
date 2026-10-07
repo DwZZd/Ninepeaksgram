@@ -66,6 +66,14 @@ class RelayTests(unittest.TestCase):
         self.assertEqual(self.request("/v1/password/take", {}, "phone-test")[0], 401)
         self.assertEqual(self.request("/v1/result", {}, "pc-test")[0], 401)
 
+    def test_password_is_bound_to_login_and_cleared_on_completion(self):
+        self.request("/v1/password", {"password": "ng1:bound", "token": "current"}, "phone-test")
+        self.assertEqual(self.request("/v1/password/take", {"token": "older"}, "pc-test"), (204, None))
+        self.assertEqual(self.request("/v1/password/take", {"token": "current"}, "pc-test"), (200, {"password": "ng1:bound"}))
+        self.request("/v1/password", {"password": "ng1:unused", "token": "current"}, "phone-test")
+        self.request("/v1/finish", {"token": "current", "success": True}, "pc-test")
+        self.assertEqual(self.request("/v1/password/take", {"token": "current"}, "pc-test"), (204, None))
+
     def test_invalid_payload_is_rejected(self):
         self.assertEqual(self.request("/v1/finish", [1, 2], "pc-test")[0], 400)
         self.assertEqual(self.request("/v1/finish", {"token": "token", "success": "false"}, "pc-test")[0], 400)
