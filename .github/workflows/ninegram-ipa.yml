@@ -7,6 +7,11 @@ on:
       - "feature/**"
       - "codex/**"
   workflow_dispatch:
+    inputs:
+      include_extensions:
+        description: 'Compile app extensions for signing with a capable Apple Developer profile'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -54,6 +59,9 @@ jobs:
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           NINEGRAM_LINK_READ_SECRET: ${{ secrets.NINEGRAM_LINK_READ_SECRET }}
           NINEGRAM_LINK_PUBLIC_KEY: ${{ secrets.NINEGRAM_LINK_PUBLIC_KEY }}
+          INCLUDE_EXTENSIONS: ${{ inputs.include_extensions || false }}
+          NINEGRAM_BUNDLE_ID: ${{ vars.NINEGRAM_BUNDLE_ID }}
+          NINEGRAM_TEAM_ID: ${{ vars.NINEGRAM_TEAM_ID }}
         run: |
           set -euo pipefail
           BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
@@ -75,6 +83,13 @@ jobs:
           fi
           export CI_CONFIG="$RUNNER_TEMP/appstore-configuration.json"
           python3 -c 'import json,os; cfg=json.load(open("build-system/appstore-configuration.json")); cfg["api_id"]=os.environ["TELEGRAM_API_ID"]; cfg["api_hash"]=os.environ["TELEGRAM_API_HASH"]; json.dump(cfg, open(os.environ["CI_CONFIG"],"w"), indent="\t"); print("Applied API credentials from secrets")'
+          if [[ -n "$NINEGRAM_BUNDLE_ID" || -n "$NINEGRAM_TEAM_ID" ]]; then
+            if [[ -z "$NINEGRAM_BUNDLE_ID" || -z "$NINEGRAM_TEAM_ID" ]]; then
+              echo "::error::Set both NINEGRAM_BUNDLE_ID and NINEGRAM_TEAM_ID repository variables"
+              exit 1
+            fi
+            python3 -c 'import json,os; p=os.environ["CI_CONFIG"]; cfg=json.load(open(p)); cfg.update(bundle_id=os.environ["NINEGRAM_BUNDLE_ID"], team_id=os.environ["NINEGRAM_TEAM_ID"]); json.dump(cfg, open(p,"w"), indent="\t"); print("Applied custom Apple app identity")'
+          fi
 
           export TELEGRAM_FAKE_P12_PASSWORD=ci
           CI_CODESIGNING="$RUNNER_TEMP/fake-codesigning"
@@ -124,6 +139,10 @@ jobs:
             echo "::error::Fake codesigning identity is not visible to codesign"
             exit 1
           fi
+          BUILD_OPTIONS=(--continueOnError)
+          if [[ "$INCLUDE_EXTENSIONS" != "true" ]]; then
+            BUILD_OPTIONS+=(--disableExtensions)
+          fi
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/bazel" \
             build \
@@ -131,8 +150,7 @@ jobs:
             --codesigningInformationPath="$CI_CODESIGNING" \
             --configuration=sideload_arm64 \
             --buildNumber="$BUILD_NUMBER" \
-            --disableExtensions \
-            --continueOnError
+            "${BUILD_OPTIONS[@]}"
 
           mkdir -p build/artifacts
           IPA_PATH=""
