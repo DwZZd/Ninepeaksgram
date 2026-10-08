@@ -29,9 +29,9 @@ public final class MessageEditVersion: PostboxCoding {
         if let entities = self.entities {
             encoder.encodeObject(entities, forKey: "e")
         }
-        encoder.encodeObjectArrayWithEncoder(self.media, forKey: "m", encoder: { media, encoder in
-            media.encode(encoder)
-        })
+        // Preserve concrete media type hashes, not the Media protocol metatype.
+        // This is the same heterogeneous-array codec used by InstantPage media.
+        encoder.encodeGenericObjectArray(self.media.map { $0 as PostboxCoding }, forKey: "m")
     }
 
     public var mediaDescription: String? {
