@@ -1136,7 +1136,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                 for entry in contexts.accounts {
                     accounts.append(entry.1.account)
                 }
-                NinegramDesktopLink.sync(accounts: accounts, authorizingAccountId: contexts.currentAuth?.id)
+                NinegramDesktopLink.sync(accounts: accounts, authorizingAccountId: contexts.currentAuth?.id, accountManager: sharedContext.accountManager)
             }))
             
             sharedContext.presentGlobalController = { [weak self] c, a in

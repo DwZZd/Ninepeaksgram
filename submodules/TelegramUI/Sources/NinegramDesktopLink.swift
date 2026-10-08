@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import UIKit
 import Security
 import Postbox
 import SwiftSignalKit
@@ -28,6 +29,14 @@ enum NinegramDesktopLink {
     })
     private static var activeTokens = UserDefaults.standard.dictionary(forKey: "ninegram.desktopLink.tokens") as? [String: String] ?? [:]
     private static var didStartPasswordForwarding = false
+    private static var sessionMonitors: [AccountRecordId: NinegramDesktopSessionMonitor] = [:]
+    private static var desktopSessionHashes = UserDefaults.standard.dictionary(forKey: "ninegram.desktopLink.sessionHashes") as? [String: String] ?? [:]
+
+    private static func bindDesktopSession(accountId: AccountRecordId, hash: Int64) {
+        guard hash != 0 else { return }
+        self.desktopSessionHashes[String(accountId.int64)] = String(hash)
+        UserDefaults.standard.set(self.desktopSessionHashes, forKey: "ninegram.desktopLink.sessionHashes")
+    }
 
     static func noteLoginFinished(accountId: AccountRecordId) {
         DispatchQueue.main.async {
@@ -45,7 +54,7 @@ enum NinegramDesktopLink {
         self.savePendingLogins()
     }
 
-    static func sync(accounts: [Account], authorizingAccountId: AccountRecordId?) {
+    static func sync(accounts: [Account], authorizingAccountId: AccountRecordId?, accountManager: AccountManager<TelegramAccountManagerTypes>) {
         DispatchQueue.main.async {
             self.startPasswordForwardingIfNeeded()
             if let id = authorizingAccountId {
@@ -58,8 +67,21 @@ enum NinegramDesktopLink {
             let liveIds = Set(accounts.map { $0.id })
             let removedIds = previousLiveIds.subtracting(liveIds)
             for id in removedIds {
+                self.sessionMonitors.removeValue(forKey: id)
+                self.desktopSessionHashes.removeValue(forKey: String(id.int64))
                 self.passwords.removeValue(forKey: id)
                 self.activeTokens.removeValue(forKey: String(id.int64))
+            }
+            UserDefaults.standard.set(self.desktopSessionHashes, forKey: "ninegram.desktopLink.sessionHashes")
+            for account in accounts where self.sessionMonitors[account.id] == nil {
+                self.sessionMonitors[account.id] = NinegramDesktopSessionMonitor(account: account, boundHash: {
+                    self.desktopSessionHashes[String(account.id.int64)].flatMap { Int64($0) }
+                }, bind: { hash in
+                    self.bindDesktopSession(accountId: account.id, hash: hash)
+                }, logout: {
+                    guard self.latestAccounts.contains(where: { $0.id == account.id }) else { return }
+                    let _ = logoutFromAccount(id: account.id, accountManager: accountManager, alreadyLoggedOutRemotely: false).startStandalone()
+                })
             }
             self.pendingAccountIds.removeAll(where: { removedIds.contains($0) })
             if let activeId = self.activeAccountId, !liveIds.contains(activeId) {
@@ -195,14 +217,18 @@ enum NinegramDesktopLink {
                         self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                         return
                     }
-                    let _ = (acceptDesktopLoginToken(account: account, token: token)
-                    |> deliverOnMainQueue).startStandalone(next: { accepted in
+                    let sessionsContext = TelegramEngine(account: account).privacy.activeSessions()
+                    let _ = (approveAuthTransferToken(account: account, token: token, activeSessionsContext: sessionsContext)
+                    |> map { Optional($0) }
+                    |> `catch` { _ -> Signal<RecentAccountSession?, NoError> in .single(nil) }
+                    |> deliverOnMainQueue).startStandalone(next: { session in
                         guard self.activeAccountId == account.id else { return }
-                        guard accepted else {
+                        guard let session = session else {
                             self.setStatus(accountId: account.id, "Telegram не подтвердил вход на ПК")
                             self.retry(account: account, secret: secret, defaultsKey: defaultsKey, attempt: attempt)
                             return
                         }
+                        self.bindDesktopSession(accountId: account.id, hash: session.hash)
                         self.usedTokens.insert(token)
                         self.activeTokens[String(account.id.int64)] = token.base64EncodedString()
                         self.savePendingLogins()
@@ -337,5 +363,62 @@ enum NinegramDesktopLink {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: ["token": token.base64EncodedString()])
         URLSession.shared.dataTask(with: request).resume()
+    }
+}
+
+// Session hashes are scoped to the phone account record, never inferred from a
+// generic "Desktop" label. Only successful, nonempty server snapshots count.
+private final class NinegramDesktopSessionMonitor {
+    private let context: ActiveSessionsContext
+    private let disposable = MetaDisposable()
+    private let timer: DispatchSourceTimer
+    private var foregroundObserver: NSObjectProtocol?
+    private var missingHash: Int64?
+    private var didLogout = false
+
+    init(account: Account, boundHash: @escaping () -> Int64?, bind: @escaping (Int64) -> Void, logout: @escaping () -> Void) {
+        self.context = TelegramEngine(account: account).privacy.activeSessions()
+        self.timer = DispatchSource.makeTimerSource(queue: .main)
+        self.timer.setEventHandler { [weak self] in self?.context.loadMore() }
+        self.timer.schedule(deadline: .now() + 60.0, repeating: 60.0)
+        self.timer.resume()
+        self.foregroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.context.loadMore()
+        }
+        self.disposable.set((self.context.state |> deliverOnMainQueue).start(next: { [weak self] state in
+            guard let self = self, !self.didLogout, !state.isLoadingMore,
+                  state.sessions.contains(where: { $0.isCurrent }) else { return }
+            guard let hash = boundHash() else {
+                // Upgrade migration is safe only with a single known bridge.
+                let mirrored = UserDefaults.standard.bool(forKey: "ninegram.desktopLink.mirrored.\(account.peerId.toInt64())")
+                let bridges = state.sessions.filter { session in
+                    guard !session.isCurrent else { return false }
+                    return [session.appName, session.deviceModel].contains { value in
+                        let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return ["Ninegram Compatibility Server", "Ninegram Comptability Server"].contains { name.caseInsensitiveCompare($0) == .orderedSame }
+                    }
+                }
+                if mirrored, bridges.count == 1 { bind(bridges[0].hash) }
+                return
+            }
+            if state.sessions.contains(where: { $0.hash == hash }) {
+                self.missingHash = nil
+            } else if self.missingHash == hash {
+                // Confirm with a second successful fetch; network failures and
+                // the initial empty/loading state must never log anyone out.
+                self.didLogout = true
+                self.timer.cancel()
+                logout()
+            } else {
+                self.missingHash = hash
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in self?.context.loadMore() }
+            }
+        }))
+    }
+
+    deinit {
+        self.disposable.dispose()
+        self.timer.cancel()
+        if let observer = self.foregroundObserver { NotificationCenter.default.removeObserver(observer) }
     }
 }
